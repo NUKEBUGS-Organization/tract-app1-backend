@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login Verification</title>
+</head>
+<body style="margin:0; padding:0; background-color:#F5F5F1; font-family:Arial,sans-serif;">
+  <div style="max-width:600px; margin:40px auto; background:#ffffff; border-radius:10px; overflow:hidden; border:1px solid #2C2C2E;">
+
+   
+    <div style="background-color:#0B0E11; padding:28px 32px;">
+      <p style="color:#D4AF37; font-size:11px; letter-spacing:3px; text-transform:uppercase; margin:0 0 6px; -webkit-text-fill-color:#D4AF37;">TractApp</p>
+      <p style="color:#F5F5F1; font-size:20px; font-weight:normal; margin:0; -webkit-text-fill-color:#F5F5F1;">Verify your login</p>
+    </div>
+
+
+    <div style="height:3px; background:linear-gradient(90deg,#D4AF37 0%,#B76E79 50%,#D4AF37 100%);"></div>
+
+
+    <div style="padding:36px 32px; background-color:#ffffff;">
+      <p style="color:#2C2C2E; font-size:15px; line-height:1.7; margin:0 0 24px;">
+        We received a sign-in request for your TractApp account. Use the code below to complete your login.
+        <strong style="color:#0B0E11;">Do not share this code</strong> with anyone.
+      </p>
+
+
+      <div style="background-color:#0B0E11; border-radius:8px; padding:28px; text-align:center; border:1px solid #2C2C2E; margin-bottom:24px;">
+        <p style="color:#D4AF37; font-size:11px; letter-spacing:3px; text-transform:uppercase; margin:0 0 14px; -webkit-text-fill-color:#D4AF37;">
+          Your verification code
+        </p>
+        <p style="
+          font-size:42px;
+          font-weight:bold;
+          letter-spacing:14px;
+          color:#ffffff;
+          -webkit-text-fill-color:#ffffff;
+          margin:0;
+          font-family:'Courier New',Courier,monospace;
+        ">{{otp}}</p>
+        <p style="color:#B76E79; font-size:13px; margin:14px 0 0; -webkit-text-fill-color:#B76E79;">
+          Expires in {{expiryMinutes}} minutes
+        </p>
+      </div>
+
+ 
+      <div style="background-color:#F5F5F1; border-left:3px solid #D4AF37; border-radius:0 6px 6px 0; padding:14px 16px;">
+        <p style="color:#2C2C2E; font-size:13px; margin:0; line-height:1.6;">
+          If you did not attempt to log in, please secure your account immediately by changing your password.
+        </p>
+      </div>
+    </div>
+
+   
+    <div style="background-color:#0B0E11; padding:20px 32px; text-align:center; border-top:1px solid #2C2C2E;">
+      <p style="color:#D4AF37; font-size:11px; letter-spacing:2px; text-transform:uppercase; margin:0 0 4px; -webkit-text-fill-color:#D4AF37;">TractApp</p>
+      <p style="color:#888888; font-size:11px; margin:0; -webkit-text-fill-color:#888888;">&copy; {{year}} TractApp. All rights reserved.</p>
+    </div>
+
+  </div>
+</body>
+</html>
