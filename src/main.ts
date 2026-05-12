@@ -1,3 +1,4 @@
+import dns from 'node:dns';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
@@ -5,6 +6,9 @@ import { ConfigService } from '@nestjs/config';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+
+const dnsFromEnv = process.env.NODE_DNS_SERVERS?.split(/[\s,]+/).filter(Boolean);
+dns.setServers(dnsFromEnv?.length ? dnsFromEnv : ['1.1.1.1', '8.8.8.8']);
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
