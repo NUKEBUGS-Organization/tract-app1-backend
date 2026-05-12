@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config'; 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 
 import appConfig from './config/app.config';
 import databaseConfig from './config/database.config';
@@ -30,6 +32,10 @@ import { SmsModule } from './sms/sms.module';
       envFilePath: '.env',
       cache: true
     }),
+    ThrottlerModule.forRoot([{
+      ttl: 60000,
+      limit: 10,  
+    }]),
     DatabaseModule,
     AuthModule,
     UsersModule,
@@ -38,6 +44,9 @@ import { SmsModule } from './sms/sms.module';
     SmsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },],
 })
 export class AppModule {}
