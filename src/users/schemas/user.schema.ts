@@ -42,10 +42,6 @@ export class User {
   @Prop({ type: String, enum: KycStatus, default: KycStatus.PENDING })
   kyc_status: KycStatus;
 
-  // Plaid — store encrypted
-  @Prop({ default: null })
-  plaid_access_token: string; // encrypted via crypto before saving
-
   @Prop({ default: false })
   bank_verified: boolean;
 
