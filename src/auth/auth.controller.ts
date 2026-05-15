@@ -5,6 +5,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { HttpCode, HttpStatus } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import type { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
@@ -98,6 +99,7 @@ export class AuthController {
   }
 
   @Post('kyc/webhook')
+  @HttpCode(HttpStatus.OK) 
   @ApiOperation({
     summary: 'Jumio callback to update user verification status',
   })
