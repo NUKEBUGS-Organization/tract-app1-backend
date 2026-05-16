@@ -294,7 +294,7 @@ export class AuthService {
   
       // 1. Fetch OAuth Token
       const jumioResponse = await fetch(
-        'https://auth.amer-1.jumio.ai/oauth2/token',
+        'https://auth.sandbox.amer-1.jumio.ai/oauth2/token',
         {
           method: 'POST',
           headers: {
@@ -321,7 +321,7 @@ export class AuthService {
   
       // 2. Create Account Session
       const sessionResponse = await fetch(
-        'https://account.amer-1.jumio.ai/api/v1/accounts',
+        'https://account.sandbox.amer-1.jumio.ai/api/v1/accounts',
         {
           method: 'POST',
           headers: {
@@ -370,16 +370,19 @@ export class AuthService {
 
   async handleKycWebhook(payload: any) {
     try {
-      const { customerId, verificationStatus } = payload;
+      const userId = payload?.account?.customerInternalReference;
+      const workflowStatus = payload?.workflow?.status; 
 
-      if (!customerId) {
+      if (!userId) {
         throw new BadRequestException('Missing customerId in KYC webhook payload');
       }
 
       let kyc_status: 'verified' | 'rejected' = 'rejected';
-      if (verificationStatus === 'APPROVED_VERIFIED') kyc_status = 'verified';
+      if (workflowStatus === 'PASSED') {
+        kyc_status = 'verified';
+      }
 
-      await this.userModel.findByIdAndUpdate(customerId, { kyc_status });
+      await this.userModel.findByIdAndUpdate(userId, { kyc_status });
 
       return { received: true };
     } catch (error) {
