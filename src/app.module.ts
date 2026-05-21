@@ -14,6 +14,7 @@ import smsConfig from './config/sms.config';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { ListingsModule } from './listings/listings.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { MailModule } from './mail/mail.module';
 import { SmsModule } from './sms/sms.module';
@@ -39,6 +40,7 @@ import { SmsModule } from './sms/sms.module';
     DatabaseModule,
     AuthModule,
     UsersModule,
+    ListingsModule,
     SessionsModule,
     MailModule,
     SmsModule,
