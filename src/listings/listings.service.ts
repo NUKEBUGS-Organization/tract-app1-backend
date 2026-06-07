@@ -372,40 +372,40 @@ export class ListingsService {
     try {
       const listing = await this.listingModel.findById(listingId);
       if (!listing) throw new NotFoundException('Listing not found');
-  
+
       if (listing.seller_id.toString() !== sellerId) {
         throw new ForbiddenException('You do not own this listing');
       }
-  
+
       // Validate document types length matches files length
       if (documentTypes.length && documentTypes.length !== files.length) {
         throw new BadRequestException(
           'Number of document types must match number of files, or leave empty',
         );
       }
-  
+
       const uploadedDocuments: Array<{
         document_id: any;
         document_type: string;
         file_name: string;
         status: string;
       }> = [];
-  
+
       const errors: Array<{
         file_name: string;
         document_type: string;
         status: string;
         error: string;
       }> = [];
-  
+
       // Track property pictures to update listing later
       const propertyPictureUrls: string[] = [];
-  
+
       // Process each file
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const documentType = (documentTypes[i] || 'other') as DocumentType;
-  
+
         try {
           // Create directory structure for this listing and document type
           const listingDir = path.join(
@@ -416,7 +416,7 @@ export class ListingsService {
           if (!fs.existsSync(listingDir)) {
             fs.mkdirSync(listingDir, { recursive: true });
           }
-  
+
           // Generate unique filename
           const timestamp = Date.now();
           const safeFileName = file.originalname.replace(
@@ -430,13 +430,13 @@ export class ListingsService {
             documentType,
             storedFileName,
           );
-  
+
           // Save file to local storage
           await fs.promises.writeFile(filePath, file.buffer);
-  
+
           // Generate public URL for the document
           const publicUrl = this.getDocumentUrl(relativePath);
-  
+
           // Save document record
           const doc = await this.documentModel.create({
             listing_id: new Types.ObjectId(listingId),
@@ -447,19 +447,19 @@ export class ListingsService {
             mime_type: file.mimetype,
             file_size: file.size,
           });
-  
+
           // If document type is property_picture, store URL for listing update
           if (documentType === DocumentType.PROPERTY_PICTURE) {
             propertyPictureUrls.push(publicUrl);
           }
-  
+
           uploadedDocuments.push({
             document_id: (doc as any)._id,
             document_type: documentType,
             file_name: file.originalname,
             status: 'success',
           });
-  
+
           this.logger.log(
             `Document uploaded: ${documentType} for listing ${listingId} -> ${filePath}`,
           );
@@ -475,22 +475,23 @@ export class ListingsService {
           );
         }
       }
-  
+
       // Update listing with property picture URLs if any were uploaded
       if (propertyPictureUrls.length > 0) {
         await this.listingModel.findByIdAndUpdate(
           listingId,
           {
             $push: { picture_urls: { $each: propertyPictureUrls } },
+            $set: { status: 'submitted' },
           },
           { new: true },
         );
-        
+
         this.logger.log(
-          `Added ${propertyPictureUrls.length} property pictures to listing ${listingId}`,
+          `Added ${propertyPictureUrls.length} property pictures and updated status to submitted for listing ${listingId}`,
         );
       }
-  
+
       // Return comprehensive response
       const response: {
         message: string;
@@ -512,11 +513,11 @@ export class ListingsService {
         listing_id: listingId,
         documents: uploadedDocuments,
       };
-  
+
       if (errors.length > 0) {
         response.errors = errors;
       }
-  
+
       return response;
     } catch (error: any) {
       if (
@@ -526,7 +527,7 @@ export class ListingsService {
       ) {
         throw error;
       }
-  
+
       this.logger.error(
         `uploadDocuments failed: ${error?.message}`,
         error?.stack,
@@ -601,7 +602,6 @@ export class ListingsService {
   //   }
   // }
 
-
   // ─── GET /listings/:id/documents ───────────────────────────────────────────
   async getDocuments(listingId: string, requesterId: string) {
     try {
@@ -630,7 +630,7 @@ export class ListingsService {
       const docsWithUrls = docs.map((doc) => {
         // Generate URL for local file access
         const fileUrl = this.getDocumentUrl(doc.s3_key);
-        
+
         return {
           _id: doc._id,
           document_type: doc.document_type,
@@ -788,7 +788,7 @@ export class ListingsService {
     try {
       const listings = await this.listingModel
         .find({ seller_id: new Types.ObjectId(sellerId) })
-        .select('-hidden_reserve')
+        // .select('-hidden_reserve')
         .sort({ createdAt: -1 })
         .lean();
 
