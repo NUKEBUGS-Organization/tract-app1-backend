@@ -112,6 +112,7 @@ export class ListingsService {
       if (
         [
           ListingStatus.LIVE,
+          ListingStatus.SUBMITTED,
           ListingStatus.UNDER_CONTRACT,
           ListingStatus.CLOSED,
         ].includes(listing.status)
