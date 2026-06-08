@@ -15,6 +15,7 @@ import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ListingsModule } from './listings/listings.module';
+import { BidsModule } from './bids/bids.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { MailModule } from './mail/mail.module';
 import { SmsModule } from './sms/sms.module';
@@ -41,6 +42,7 @@ import { SmsModule } from './sms/sms.module';
     AuthModule,
     UsersModule,
     ListingsModule,
+    BidsModule,
     SessionsModule,
     MailModule,
     SmsModule,
