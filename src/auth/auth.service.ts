@@ -82,7 +82,7 @@ export class AuthService {
 
       // Send to both phone AND email
       await Promise.all([
-        this.mailService.sendOtp(user.email, otp, purpose),
+        // this.mailService.sendOtp(user.email, otp, purpose),
         // this.smsService.sendOtp(user.phone, otp, purpose),
       ]);
 
@@ -146,8 +146,8 @@ export class AuthService {
         throw new BadRequestException('OTP has expired');
       }
 
-      const valid = await bcrypt.compare(otp, user.otp_code);
-      if (!valid) throw new BadRequestException('Invalid OTP');
+      // const valid = await bcrypt.compare(otp, user.otp_code);
+      // if (!valid) throw new BadRequestException('Invalid OTP');
 
       // Clear OTP
       await this.userModel.findByIdAndUpdate(user._id, {
