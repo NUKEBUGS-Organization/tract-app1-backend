@@ -183,18 +183,18 @@ export class ListingsService {
 
       await this.listingModel.findByIdAndUpdate(listingId, {
         status: ListingStatus.SUBMITTED,
-        auto_live_job_id: jobId,
-        live_at: liveAt,
+        // auto_live_job_id: jobId,
+        // live_at: liveAt,
       });
 
-      this.logger.log(
-        `Listing ${listingId} submitted. Auto-live scheduled at ${liveAt.toISOString()}`,
-      );
+      // this.logger.log(
+      //   `Listing ${listingId} submitted. Auto-live scheduled at ${liveAt.toISOString()}`,
+      // );
 
       return {
         message: 'Listing submitted. It will go live in 1 hour.',
-        live_at: liveAt,
-        job_id: jobId,
+        // live_at: liveAt,
+        // job_id: jobId,
       };
     } catch (error) {
       if (
@@ -483,7 +483,6 @@ export class ListingsService {
           listingId,
           {
             $push: { picture_urls: { $each: propertyPictureUrls } },
-            $set: { status: 'submitted' },
           },
           { new: true },
         );
