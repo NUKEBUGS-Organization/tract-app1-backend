@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from './schemas/user.schema';
-import { UpdateUserDto } from './dto/users.dto';
+import { UpdateUserDto, ChangePasswordDto } from './dto/users.dto';
 
 @Injectable()
 export class UsersService {
@@ -53,5 +54,28 @@ export class UsersService {
 
   async unbanUser(id: string): Promise<UserDocument> {
     return this.updateById(id, { is_banned: false });
+  }
+
+  async updateProfile(id: string, dto: UpdateUserDto): Promise<UserDocument> {
+    const updates: Partial<User> = {};
+    if (dto.full_name)  updates.full_name  = dto.full_name;
+    if (dto.state_code) updates.state_code = dto.state_code;
+    if (dto.dob)        updates.dob        = new Date(dto.dob);
+  
+    return this.updateById(id, updates);
+  }
+  
+  async changePassword(id: string, dto: ChangePasswordDto): Promise<{ message: string }> {
+    // Fetch the raw user (with password_hash) — bypass excludedFields
+    const user = await this.userModel.findById(id).select('+password_hash').lean();
+    if (!user) throw new NotFoundException('User not found');
+  
+    const isMatch = await bcrypt.compare(dto.current_password, user.password_hash);
+    if (!isMatch) throw new BadRequestException('Current password is incorrect');
+  
+    const newHash = await bcrypt.hash(dto.new_password, 12);
+    await this.userModel.findByIdAndUpdate(id, { password_hash: newHash });
+  
+    return { message: 'Password changed successfully' };
   }
 }
