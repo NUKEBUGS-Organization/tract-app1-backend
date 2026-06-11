@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { Deal, DealSchema } from './schemas/deal.schema';
@@ -11,6 +11,7 @@ import { User, UserSchema } from '../users/schemas/user.schema';
 
 import { DealsService } from './deals.service';
 import { DealsController } from './deals.controller';
+import { ChatModule } from '../chat/chat.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { DealsController } from './deals.controller';
         schema: UserSchema,
       },
     ]),
+    forwardRef(() => ChatModule)
   ],
   controllers: [DealsController],
   providers: [DealsService],

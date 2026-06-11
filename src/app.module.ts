@@ -21,6 +21,7 @@ import { MailModule } from './mail/mail.module';
 import { SmsModule } from './sms/sms.module';
 import { ContractsModule } from './contracts/contract.module';
 import { DealsModule } from './deals/deals.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { DealsModule } from './deals/deals.module';
     BidsModule,
     ContractsModule,
     DealsModule,
+    ChatModule,
     SessionsModule,
     MailModule,
     SmsModule,

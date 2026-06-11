@@ -22,6 +22,7 @@ import {
   ListingDocument,
   ListingStatus,
 } from '../listings/schemas/listing.schema';
+import { ChatService } from '../chat/chat.service';
 
 import { User, UserDocument, Role } from '../users/schemas/user.schema';
 
@@ -42,6 +43,8 @@ export class DealsService {
 
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+
+    private readonly chatService: ChatService,
   ) {}
 
   async getDeal(dealId: string, userId: string) {
@@ -282,7 +285,7 @@ export class DealsService {
       marketLaunchDeadline = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
     }
 
-    return this.dealModel.create({
+    const deal = await this.dealModel.create({
       contract_id: contract._id,
 
       listing_id: contract.property_id,
@@ -299,5 +302,9 @@ export class DealsService {
 
       status: DealStatus.ACTIVE,
     });
+
+    await this.chatService.createRoomForDeal(deal._id.toString());
+
+    return deal;
   }
 }
