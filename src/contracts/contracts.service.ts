@@ -15,11 +15,14 @@ import {
   ContractStatus,
 } from './schemas/contract.schema';
 
+import { Deal, DealDocument, DealStatus } from '../deals/schemas/deal.schema';
+
 import { Bid, BidDocument, BidStatus } from '../bids/schemas/bid.schema';
 
 import { Listing, ListingDocument } from '../listings/schemas/listing.schema';
 
 import { CreateContractDto } from './dto/create-contract.dto';
+import { DealsService } from 'src/deals/deals.service';
 
 @Injectable()
 export class ContractsService {
@@ -27,11 +30,16 @@ export class ContractsService {
     @InjectModel(Contract.name)
     private readonly contractModel: Model<ContractDocument>,
 
+    @InjectModel(Deal.name)
+    private readonly dealModel: Model<DealDocument>,
+
     @InjectModel(Bid.name)
     private readonly bidModel: Model<BidDocument>,
 
     @InjectModel(Listing.name)
     private readonly listingModel: Model<ListingDocument>,
+
+    private readonly dealsService: DealsService,
   ) {}
 
   async createContract(
@@ -130,6 +138,10 @@ export class ContractsService {
     }
 
     await contract.save();
+
+    if (contract.status === ContractStatus.SIGNED) {
+      await this.dealsService.createDealFromContract(contract._id.toString());
+    }
 
     return contract;
   }
