@@ -271,9 +271,8 @@ export class DealsService {
 
     const now = new Date();
 
-    let marketingDeadline : Date;
-
-    let marketLaunchDeadline : Date;
+    let marketingDeadline: Date | undefined = undefined;
+    let marketLaunchDeadline: Date | undefined = undefined;
 
     if (buyer?.role === Role.WHOLESALER) {
       marketingDeadline = new Date(now.getTime() + 72 * 60 * 60 * 1000); // 72 hours

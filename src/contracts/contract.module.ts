@@ -9,6 +9,7 @@ import { Listing, ListingSchema } from '../listings/schemas/listing.schema';
 
 import { ContractsController } from './contracts.controller';
 import { ContractsService } from './contracts.service';
+import { DealsModule } from '../deals/deals.module'; 
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { ContractsService } from './contracts.service';
         schema: ListingSchema,
       },
     ]),
+    DealsModule,
   ],
   controllers: [ContractsController],
   providers: [ContractsService],

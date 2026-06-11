@@ -35,6 +35,6 @@ import { DealsController } from './deals.controller';
   ],
   controllers: [DealsController],
   providers: [DealsService],
-  exports: [DealsService],
+  exports: [DealsService, MongooseModule],
 })
 export class DealsModule {}

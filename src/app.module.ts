@@ -20,6 +20,7 @@ import { SessionsModule } from './sessions/sessions.module';
 import { MailModule } from './mail/mail.module';
 import { SmsModule } from './sms/sms.module';
 import { ContractsModule } from './contracts/contract.module';
+import { DealsModule } from './deals/deals.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { ContractsModule } from './contracts/contract.module';
     ListingsModule,
     BidsModule,
     ContractsModule,
+    DealsModule,
     SessionsModule,
     MailModule,
     SmsModule,
