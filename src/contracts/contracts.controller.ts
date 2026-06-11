@@ -18,6 +18,7 @@ import { Role } from '../users/schemas/user.schema';
 
 import { ContractsService } from './contracts.service';
 import { CreateContractDto } from './dto/create-contract.dto';
+import type { AuthenticatedRequest } from 'src/common/interfaces/authenticated-request.interface';
 
 @ApiTags('Contracts')
 @ApiBearerAuth('access-token')
@@ -37,7 +38,7 @@ export class ContractsController {
     dto: CreateContractDto,
 
     @Request()
-    req,
+    req: AuthenticatedRequest,
   ) {
     return this.contractsService.createContract(listingId, req.user._id, dto);
   }
@@ -56,7 +57,7 @@ export class ContractsController {
     id: string,
 
     @Request()
-    req,
+    req: AuthenticatedRequest,
   ) {
     return this.contractsService.signAsSeller(id, req.user._id);
   }
@@ -67,7 +68,7 @@ export class ContractsController {
     id: string,
 
     @Request()
-    req,
+    req: AuthenticatedRequest,
   ) {
     return this.contractsService.signAsBuyer(id, req.user._id);
   }
@@ -78,5 +79,18 @@ export class ContractsController {
     id: string,
   ) {
     return this.contractsService.cancelContract(id);
+  }
+
+  @Get('/listing/:listingId')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SELLER)
+  async getContractsByListing(
+    @Param('listingId')
+    listingId: string,
+
+    @Request()
+    req: AuthenticatedRequest,
+  ) {
+    return this.contractsService.getContractsByListing(listingId, req.user._id);
   }
 }

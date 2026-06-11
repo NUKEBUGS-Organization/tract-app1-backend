@@ -147,4 +147,31 @@ export class ContractsService {
 
     return contract;
   }
+
+  async getContractsByListing(listingId: string, userId: string) {
+    const listing = await this.listingModel.findById(listingId);
+
+    if (!listing) {
+      throw new NotFoundException('Listing not found');
+    }
+
+    // Optional ownership check
+    if (listing.seller_id.toString() !== userId) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    return this.contractModel
+      .find({
+        property_id: listing._id,
+      })
+      .populate('buyer_id', 'full_name email phone')
+      .populate('seller_id', 'full_name email phone')
+      .populate({
+        path: 'bid_id',
+        select: 'bid_price inspection_period due_diligence_period status',
+      })
+      .sort({
+        createdAt: -1,
+      });
+  }
 }
