@@ -10,8 +10,6 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
-import * as fs from 'fs';
-import * as path from 'path';
 import {
   Listing,
   ListingDocument,
@@ -26,7 +24,7 @@ import {
 import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { ListingQueryDto } from './dto/listing-query.dto';
-import { S3Service } from '../common/services/s3.service';
+import { CloudinaryService } from '../common/services/cloudinary.service';
 
 const MAX_BIDS = 10;
 
@@ -35,31 +33,19 @@ export class ListingsService {
   private readonly logger = new Logger(ListingsService.name);
   private readonly ENCRYPTION_KEY: Buffer;
   private readonly IV_LENGTH = 16;
-  private readonly UPLOAD_DIR = 'uploads/documents';
 
   constructor(
     @InjectModel(Listing.name) private listingModel: Model<ListingDocument>,
     @InjectModel(Bid.name) private bidModel: Model<BidDocument>,
     @InjectModel(DocumentVault.name) private documentModel: Model<DocumentDoc>,
     private configService: ConfigService,
-    private s3Service: S3Service,
-  ) {
-    if (!fs.existsSync(this.UPLOAD_DIR)) {
-      fs.mkdirSync(this.UPLOAD_DIR, { recursive: true });
-    }
-  }
+    private cloudinaryService: CloudinaryService,
+  ) {}
 
   // ─── POST /listings ────────────────────────────────────────────────────────
   async createListing(sellerId: string, dto: CreateListingDto) {
     try {
       const data: any = { ...dto, seller_id: new Types.ObjectId(sellerId) };
-
-      // Encrypt hidden_reserve before storing
-      // if (dto.hidden_reserve) {
-      //   data.hidden_reserve = this.encrypt(dto.hidden_reserve.toString());
-      //   delete data.hidden_reserve; // remove plain value
-      //   data.hidden_reserve = this.encrypt(dto.hidden_reserve.toString());
-      // }
 
       const listing = await this.listingModel.create(data);
 
@@ -179,17 +165,13 @@ export class ListingsService {
 
       // Schedule auto-live job (1 hour from now)
       const liveAt = new Date(Date.now() + 60 * 60 * 1000);
-      const jobId = `job_${listing._id}_${Date.now()}`; // replace with real queue job ID
+      const jobId = `job_${listing._id}_${Date.now()}`;
 
       await this.listingModel.findByIdAndUpdate(listingId, {
         status: ListingStatus.SUBMITTED,
         // auto_live_job_id: jobId,
         // live_at: liveAt,
       });
-
-      // this.logger.log(
-      //   `Listing ${listingId} submitted. Auto-live scheduled at ${liveAt.toISOString()}`,
-      // );
 
       return {
         message: 'Listing submitted. It will go live in 1 hour.',
@@ -210,145 +192,6 @@ export class ListingsService {
   }
 
   // ─── POST /listings/:id/documents ──────────────────────────────────────────
-  // AWS S3
-  // async uploadDocuments(
-  //   listingId: string,
-  //   sellerId: string,
-  //   files: Express.Multer.File[],
-  //   documentTypes: string[],
-  // ): Promise<{
-  //   message: string;
-  //   listing_id: string;
-  //   documents: Array<{
-  //     document_id: any;
-  //     document_type: string;
-  //     file_name: string;
-  //     status: string;
-  //   }>;
-  //   errors?: Array<{
-  //     file_name: string;
-  //     document_type: string;
-  //     status: string;
-  //     error: string;
-  //   }>;
-  // }> {
-  //   try {
-  //     const listing = await this.listingModel.findById(listingId);
-  //     if (!listing) throw new NotFoundException('Listing not found');
-
-  //     if (listing.seller_id.toString() !== sellerId) {
-  //       throw new ForbiddenException('You do not own this listing');
-  //     }
-
-  //     // Validate document types length matches files length
-  //     if (documentTypes.length && documentTypes.length !== files.length) {
-  //       throw new BadRequestException(
-  //         'Number of document types must match number of files, or leave empty',
-  //       );
-  //     }
-
-  //     const uploadedDocuments: Array<{
-  //       document_id: any;
-  //       document_type: string;
-  //       file_name: string;
-  //       status: string;
-  //     }> = [];
-
-  //     const errors: Array<{
-  //       file_name: string;
-  //       document_type: string;
-  //       status: string;
-  //       error: string;
-  //     }> = [];
-
-  //     // Process each file
-  //     for (let i = 0; i < files.length; i++) {
-  //       const file = files[i];
-  //       const documentType = documentTypes[i] || 'other';
-
-  //       try {
-  //         // Upload to S3
-  //         const s3Key = `listings/${listingId}/${documentType}/${Date.now()}_${file.originalname}`;
-  //         await this.s3Service.upload(s3Key, file.buffer, file.mimetype);
-
-  //         // Save document record
-  //         const doc = await this.documentModel.create({
-  //           listing_id: new Types.ObjectId(listingId),
-  //           uploaded_by: new Types.ObjectId(sellerId),
-  //           document_type: documentType as DocumentType,
-  //           file_name: file.originalname,
-  //           s3_key: s3Key,
-  //           mime_type: file.mimetype,
-  //           file_size: file.size,
-  //         });
-
-  //         uploadedDocuments.push({
-  //           document_id: (doc as any)._id,
-  //           document_type: documentType,
-  //           file_name: file.originalname,
-  //           status: 'success',
-  //         });
-
-  //         this.logger.log(
-  //           `Document uploaded: ${documentType} for listing ${listingId}`,
-  //         );
-  //       } catch (fileError: any) {
-  //         errors.push({
-  //           file_name: file.originalname,
-  //           document_type: documentType,
-  //           status: 'failed',
-  //           error: fileError?.message || 'Failed to upload file',
-  //         });
-  //         this.logger.error(
-  //           `Failed to upload document ${file.originalname}: ${fileError?.message}`,
-  //         );
-  //       }
-  //     }
-
-  //     // Return comprehensive response
-  //     const response: {
-  //       message: string;
-  //       listing_id: string;
-  //       documents: Array<{
-  //         document_id: any;
-  //         document_type: string;
-  //         file_name: string;
-  //         status: string;
-  //       }>;
-  //       errors?: Array<{
-  //         file_name: string;
-  //         document_type: string;
-  //         status: string;
-  //         error: string;
-  //       }>;
-  //     } = {
-  //       message: `Uploaded ${uploadedDocuments.length} of ${files.length} documents successfully`,
-  //       listing_id: listingId,
-  //       documents: uploadedDocuments,
-  //     };
-
-  //     if (errors.length > 0) {
-  //       response.errors = errors;
-  //     }
-
-  //     return response;
-  //   } catch (error: any) {
-  //     if (
-  //       error instanceof NotFoundException ||
-  //       error instanceof ForbiddenException ||
-  //       error instanceof BadRequestException
-  //     ) {
-  //       throw error;
-  //     }
-
-  //     this.logger.error(
-  //       `uploadDocuments failed: ${error?.message}`,
-  //       error?.stack,
-  //     );
-  //     throw new InternalServerErrorException('Failed to upload documents.');
-  //   }
-  // }
-
   async uploadDocuments(
     listingId: string,
     sellerId: string,
@@ -361,6 +204,7 @@ export class ListingsService {
       document_id: any;
       document_type: string;
       file_name: string;
+      url: string;
       status: string;
     }>;
     errors?: Array<{
@@ -378,7 +222,6 @@ export class ListingsService {
         throw new ForbiddenException('You do not own this listing');
       }
 
-      // Validate document types length matches files length
       if (documentTypes.length && documentTypes.length !== files.length) {
         throw new BadRequestException(
           'Number of document types must match number of files, or leave empty',
@@ -389,6 +232,7 @@ export class ListingsService {
         document_id: any;
         document_type: string;
         file_name: string;
+        url: string;
         status: string;
       }> = [];
 
@@ -399,58 +243,41 @@ export class ListingsService {
         error: string;
       }> = [];
 
-      // Track property pictures to update listing later
       const propertyPictureUrls: string[] = [];
 
-      // Process each file
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const documentType = (documentTypes[i] || 'other') as DocumentType;
 
         try {
-          // Create directory structure for this listing and document type
-          const listingDir = path.join(
-            this.UPLOAD_DIR,
-            listingId,
-            documentType,
-          );
-          if (!fs.existsSync(listingDir)) {
-            fs.mkdirSync(listingDir, { recursive: true });
-          }
+          const folder = `tractapp/listings/${listingId}/${documentType}`;
+          const isImage = documentType === DocumentType.PROPERTY_PICTURE;
 
-          // Generate unique filename
-          const timestamp = Date.now();
-          const safeFileName = file.originalname.replace(
-            /[^a-zA-Z0-9.-]/g,
-            '_',
-          );
-          const storedFileName = `${timestamp}_${safeFileName}`;
-          const filePath = path.join(listingDir, storedFileName);
-          const relativePath = path.join(
-            listingId,
-            documentType,
-            storedFileName,
-          );
+          // Upload to Cloudinary — images get optimization, other files go as raw
+          const cloudinaryResult = isImage
+            ? await this.cloudinaryService.uploadImage(file.buffer, folder)
+            : await this.cloudinaryService.uploadFile(
+                file.buffer,
+                folder,
+                file.originalname,
+                file.mimetype,
+              );
 
-          // Save file to local storage
-          await fs.promises.writeFile(filePath, file.buffer);
+          const publicUrl = cloudinaryResult.secure_url;
+          const cloudinaryPublicId = cloudinaryResult.public_id;
 
-          // Generate public URL for the document
-          const publicUrl = this.getDocumentUrl(relativePath);
-
-          // Save document record
+          // Save document record — reuse s3_key to store Cloudinary public_id
           const doc = await this.documentModel.create({
             listing_id: new Types.ObjectId(listingId),
             uploaded_by: new Types.ObjectId(sellerId),
             document_type: documentType,
             file_name: file.originalname,
-            s3_key: relativePath,
+            s3_key: cloudinaryPublicId,
             mime_type: file.mimetype,
             file_size: file.size,
           });
 
-          // If document type is property_picture, store URL for listing update
-          if (documentType === DocumentType.PROPERTY_PICTURE) {
+          if (isImage) {
             propertyPictureUrls.push(publicUrl);
           }
 
@@ -458,11 +285,12 @@ export class ListingsService {
             document_id: (doc as any)._id,
             document_type: documentType,
             file_name: file.originalname,
+            url: publicUrl,
             status: 'success',
           });
 
           this.logger.log(
-            `Document uploaded: ${documentType} for listing ${listingId} -> ${filePath}`,
+            `Cloudinary upload: ${documentType} for listing ${listingId} -> ${publicUrl}`,
           );
         } catch (fileError: any) {
           errors.push({
@@ -472,43 +300,25 @@ export class ListingsService {
             error: fileError?.message || 'Failed to upload file',
           });
           this.logger.error(
-            `Failed to upload document ${file.originalname}: ${fileError?.message}`,
+            `Failed to upload ${file.originalname}: ${fileError?.message}`,
           );
         }
       }
 
-      // Update listing with property picture URLs if any were uploaded
+      // Push property picture URLs into the listing
       if (propertyPictureUrls.length > 0) {
         await this.listingModel.findByIdAndUpdate(
           listingId,
-          {
-            $push: { picture_urls: { $each: propertyPictureUrls } },
-          },
+          { $push: { picture_urls: { $each: propertyPictureUrls } } },
           { new: true },
         );
 
         this.logger.log(
-          `Added ${propertyPictureUrls.length} property pictures and updated status to submitted for listing ${listingId}`,
+          `Added ${propertyPictureUrls.length} property pictures to listing ${listingId}`,
         );
       }
 
-      // Return comprehensive response
-      const response: {
-        message: string;
-        listing_id: string;
-        documents: Array<{
-          document_id: any;
-          document_type: string;
-          file_name: string;
-          status: string;
-        }>;
-        errors?: Array<{
-          file_name: string;
-          document_type: string;
-          status: string;
-          error: string;
-        }>;
-      } = {
+      const response: any = {
         message: `Uploaded ${uploadedDocuments.length} of ${files.length} documents successfully`,
         listing_id: listingId,
         documents: uploadedDocuments,
@@ -524,9 +334,8 @@ export class ListingsService {
         error instanceof NotFoundException ||
         error instanceof ForbiddenException ||
         error instanceof BadRequestException
-      ) {
+      )
         throw error;
-      }
 
       this.logger.error(
         `uploadDocuments failed: ${error?.message}`,
@@ -535,72 +344,6 @@ export class ListingsService {
       throw new InternalServerErrorException('Failed to upload documents.');
     }
   }
-
-  // ─── GET /listings/:id/documents ───────────────────────────────────────────
-  // AWS S3
-  // async getDocuments(listingId: string, requesterId: string) {
-  //   try {
-  //     const listing = await this.listingModel.findById(listingId);
-  //     if (!listing) throw new NotFoundException('Listing not found');
-
-  //     const isOwner = listing.seller_id.toString() === requesterId;
-
-  //     // Non-owners can only see documents if listing is live+
-  //     if (
-  //       !isOwner &&
-  //       ![
-  //         ListingStatus.LIVE,
-  //         ListingStatus.UNDER_CONTRACT,
-  //         ListingStatus.CLOSED,
-  //       ].includes(listing.status)
-  //     ) {
-  //       throw new ForbiddenException('Documents not accessible at this stage');
-  //     }
-
-  //     const docs = await this.documentModel
-  //       .find({ listing_id: new Types.ObjectId(listingId) })
-  //       .lean();
-
-  //     // Generate signed URLs for each document
-  //     // const docsWithUrls = await Promise.all(
-  //     //   docs.map(async (doc) => {
-  //     //     try {
-  //     //       const signed_url = await this.s3Service.getSignedUrl(
-  //     //         doc.s3_key,
-  //     //         3600, // 1 hour expiry
-  //     //       );
-  //     //       return {
-  //     //         _id: doc._id,
-  //     //         document_type: doc.document_type,
-  //     //         file_name: doc.file_name,
-  //     //         file_size: doc.file_size,
-  //     //         signed_url,
-  //     //         uploaded_at: (doc as any).createdAt,
-  //     //       };
-  //     //     } catch {
-  //     //       return {
-  //     //         _id: doc._id,
-  //     //         document_type: doc.document_type,
-  //     //         file_name: doc.file_name,
-  //     //         signed_url: null,
-  //     //         error: 'Failed to generate URL',
-  //     //       };
-  //     //     }
-  //     //   }),
-  //     // );
-
-  //     // return docsWithUrls;
-  //   } catch (error) {
-  //     if (
-  //       error instanceof NotFoundException ||
-  //       error instanceof ForbiddenException
-  //     )
-  //       throw error;
-
-  //     this.logger.error(`getDocuments failed: ${error.message}`, error.stack);
-  //     throw new InternalServerErrorException('Failed to fetch documents.');
-  //   }
-  // }
 
   // ─── GET /listings/:id/documents ───────────────────────────────────────────
   async getDocuments(listingId: string, requesterId: string) {
@@ -626,10 +369,14 @@ export class ListingsService {
         .find({ listing_id: new Types.ObjectId(listingId) })
         .lean();
 
-      // Generate local URLs for each document
+      const cloudName = this.configService.get<string>('CLOUDINARY_CLOUD_NAME');
+
       const docsWithUrls = docs.map((doc) => {
-        // Generate URL for local file access
-        const fileUrl = this.getDocumentUrl(doc.s3_key);
+        // Reconstruct Cloudinary URL from stored public_id
+        // Images use /image/upload/, raw files use /raw/upload/
+        const isImage = doc.document_type === DocumentType.PROPERTY_PICTURE;
+        const resourceType = isImage ? 'image' : 'raw';
+        const url = `https://res.cloudinary.com/${cloudName}/${resourceType}/upload/${doc.s3_key}`;
 
         return {
           _id: doc._id,
@@ -637,7 +384,7 @@ export class ListingsService {
           file_name: doc.file_name,
           file_size: doc.file_size,
           mime_type: doc.mime_type,
-          url: fileUrl,
+          url,
           uploaded_at: (doc as any).createdAt || (doc as any).created_at,
         };
       });
@@ -657,14 +404,6 @@ export class ListingsService {
       this.logger.error(`getDocuments failed: ${error.message}`, error.stack);
       throw new InternalServerErrorException('Failed to fetch documents.');
     }
-  }
-
-  // Helper method to generate document URL
-  private getDocumentUrl(relativePath: string): string {
-    const baseUrl = 'http://localhost:3000';
-    // URL encode the path to handle special characters
-    const encodedPath = encodeURIComponent(relativePath);
-    return `${baseUrl}/api/listings/documents/view/${encodedPath}`;
   }
 
   // ─── GET /listings ─────────────────────────────────────────────────────────
@@ -788,7 +527,6 @@ export class ListingsService {
     try {
       const listings = await this.listingModel
         .find({ seller_id: new Types.ObjectId(sellerId) })
-        // .select('-hidden_reserve')
         .sort({ createdAt: -1 })
         .lean();
 

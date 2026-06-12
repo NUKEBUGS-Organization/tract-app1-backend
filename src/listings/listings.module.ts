@@ -11,6 +11,7 @@ import {
   DocumentSchema,
 } from '../documents/schemas/document.schema';
 import { S3Service } from '../common/services/s3.service';
+import { CloudinaryService } from '../common/services/cloudinary.service';
 
 @Module({
   imports: [
@@ -22,7 +23,7 @@ import { S3Service } from '../common/services/s3.service';
     MulterModule.register({ storage: memoryStorage() }), // store in memory, upload to S3
   ],
   controllers: [ListingsController],
-  providers: [ListingsService, S3Service],
+  providers: [ListingsService, S3Service, CloudinaryService],
   exports: [ListingsService, MongooseModule],
 })
 export class ListingsModule {}
