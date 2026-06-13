@@ -6,8 +6,7 @@ import {
 } from '@nestjs/common';
 
 import { InjectModel } from '@nestjs/mongoose';
-
-import { Model, Types } from 'mongoose';
+import { Model } from 'mongoose';
 
 import {
   Contract,
@@ -15,14 +14,15 @@ import {
   ContractStatus,
 } from './schemas/contract.schema';
 
-import { Deal, DealDocument, DealStatus } from '../deals/schemas/deal.schema';
-
+import { Deal, DealDocument } from '../deals/schemas/deal.schema';
 import { Bid, BidDocument, BidStatus } from '../bids/schemas/bid.schema';
-
 import { Listing, ListingDocument } from '../listings/schemas/listing.schema';
+import { User, UserDocument } from '../users/schemas/user.schema';
 
 import { CreateContractDto } from './dto/create-contract.dto';
 import { DealsService } from 'src/deals/deals.service';
+import { CloudinaryService } from '../common/services/cloudinary.service';
+import { generateContractPdf } from '../common/utils/pdf.generator';
 
 @Injectable()
 export class ContractsService {
@@ -39,7 +39,11 @@ export class ContractsService {
     @InjectModel(Listing.name)
     private readonly listingModel: Model<ListingDocument>,
 
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
+
     private readonly dealsService: DealsService,
+    private readonly cloudinaryService: CloudinaryService,
   ) {}
 
   async createContract(
@@ -75,12 +79,47 @@ export class ContractsService {
       return existing;
     }
 
+    // Fetch seller and buyer details for the PDF
+    const [seller, buyer] = await Promise.all([
+      this.userModel.findById(listing.seller_id),
+      this.userModel.findById(bid.bidder_id),
+    ]);
+
+    if (!seller || !buyer) {
+      throw new NotFoundException('Seller or Buyer not found');
+    }
+
+    // Generate the contract PDF using the agreed-upon terms
+    const pdfBuffer = await generateContractPdf({
+      sellerName: seller.full_name,
+      sellerAddress: `${listing.address}, ${listing.state_code} ${listing.zip_code}`,
+      buyerName: `${buyer.full_name} and/or Assigns`,
+      buyerAddress: dto.buyer_address ?? 'On File',
+      propertyAddress: listing.address,
+      propertyBlock: dto.property_block,
+      propertyLot: dto.property_lot,
+      purchasePrice: bid.bid_price,
+      emdAmount: dto.emd_amount ?? Math.min(1000, bid.bid_price),
+      balanceAmount:
+        bid.bid_price - (dto.emd_amount ?? Math.min(1000, bid.bid_price)),
+      closingDays: dto.closing_days ?? 120,
+      effectiveDate: new Date(),
+    });
+
+    // Upload generated PDF to Cloudinary
+    const uploadResult = await this.cloudinaryService.uploadFile(
+      pdfBuffer,
+      `contracts/${listing._id}`,
+      `contract_${bid._id}.pdf`,
+      'application/pdf',
+    );
+
     return this.contractModel.create({
       property_id: listing._id,
       bid_id: bid._id,
       seller_id: listing.seller_id,
       buyer_id: bid.bidder_id,
-      pdf_url: dto.pdf_url,
+      pdf_url: uploadResult.secure_url,
     });
   }
 
@@ -167,7 +206,6 @@ export class ContractsService {
       throw new NotFoundException('Listing not found');
     }
 
-    // Optional ownership check
     if (listing.seller_id.toString() !== userId) {
       throw new ForbiddenException('Access denied');
     }

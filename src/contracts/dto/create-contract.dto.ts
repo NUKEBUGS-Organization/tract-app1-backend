@@ -1,10 +1,26 @@
-import { IsMongoId, IsOptional, IsString } from 'class-validator';
+import { IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateContractDto {
-  @IsMongoId()
+  @IsString()
   bid_id: string;
 
   @IsOptional()
   @IsString()
-  pdf_url?: string;
+  buyer_address?: string;
+
+  @IsOptional()
+  @IsString()
+  property_block?: string;
+
+  @IsOptional()
+  @IsString()
+  property_lot?: string;
+
+  @IsOptional()
+  @IsNumber()
+  emd_amount?: number;
+
+  @IsOptional()
+  @IsNumber()
+  closing_days?: number;
 }

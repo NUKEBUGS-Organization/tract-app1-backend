@@ -7,9 +7,12 @@ import { Bid, BidSchema } from '../bids/schemas/bid.schema';
 
 import { Listing, ListingSchema } from '../listings/schemas/listing.schema';
 
+import { User, UserSchema } from '../users/schemas/user.schema';
+
 import { ContractsController } from './contracts.controller';
 import { ContractsService } from './contracts.service';
-import { DealsModule } from '../deals/deals.module'; 
+import { DealsModule } from '../deals/deals.module';
+import { CloudinaryService } from '../common/services/cloudinary.service';
 
 @Module({
   imports: [
@@ -26,11 +29,15 @@ import { DealsModule } from '../deals/deals.module';
         name: Listing.name,
         schema: ListingSchema,
       },
+      {
+        name: User.name,
+        schema: UserSchema,
+      },
     ]),
-    DealsModule,
+    DealsModule
   ],
   controllers: [ContractsController],
-  providers: [ContractsService],
+  providers: [ContractsService, CloudinaryService],
   exports: [ContractsService],
 })
 export class ContractsModule {}
