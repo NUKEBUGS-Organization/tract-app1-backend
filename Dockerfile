@@ -6,9 +6,9 @@ WORKDIR /app
 # CapRover may inject NODE_ENV=production at build time; devDependencies are required to compile.
 ENV NODE_ENV=development
 
-COPY package.json package-lock.json ./
+COPY package*.json ./
 
-RUN npm ci --include=dev --no-audit --no-fund
+RUN npm ci --no-audit --no-fund
 
 COPY . .
 
