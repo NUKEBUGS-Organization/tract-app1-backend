@@ -3,6 +3,7 @@ import {
   IsString,
   IsDateString,
   IsNotEmpty,
+  MinLength
 } from 'class-validator';
 
 export class UpdateUserDto {
@@ -23,4 +24,13 @@ export class BanUserDto {
   @IsString()
   @IsNotEmpty()
   reason: string;
+}
+
+export class ChangePasswordDto {
+  @IsString()
+  current_password: string;
+
+  @IsString()
+  @MinLength(8)
+  new_password: string;
 }
