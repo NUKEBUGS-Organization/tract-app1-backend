@@ -127,7 +127,7 @@ export class AuthService {
         throw error;
       }
       throw new InternalServerErrorException(
-        'Login failed. Please try again.',
+        `Login failed. Please try again. ${error}`,
       );
     }
   }
