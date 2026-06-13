@@ -3,7 +3,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 interface ContractPdfData {
   sellerName: string;
   sellerAddress: string;
-  buyerName: string; // "UNM Limited LLC and/or Assigns"
+  buyerName: string;
   buyerAddress: string;
   propertyAddress: string;
   propertyBlock?: string;
@@ -11,29 +11,20 @@ interface ContractPdfData {
   purchasePrice: number;
   emdAmount: number;
   balanceAmount: number;
-  closingDays: number; // e.g. 120
+  closingDays: number;
   effectiveDate: Date;
 }
 
 const fmtMoney = (n: number) =>
   `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-const fmtDate = (d: Date) =>
-  d.toLocaleDateString('en-US', {
-    day: 'numeric',
-    month: 'long',
-    year: '2-digit',
-  });
-
-export async function generateContractPdf(
-  data: ContractPdfData,
-): Promise<Buffer> {
+export async function generateContractPdf(data: ContractPdfData): Promise<Buffer> {
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  const pageWidth = 612; // 8.5in
-  const pageHeight = 792; // 11in
+  const pageWidth = 612;
+  const pageHeight = 792;
   const margin = 50;
   const contentWidth = pageWidth - margin * 2;
 
@@ -43,7 +34,6 @@ export async function generateContractPdf(
   const black = rgb(0, 0, 0);
   const lineGray = rgb(0.5, 0.5, 0.5);
 
-  // ---- helpers ----
   const newPage = () => {
     page = pdfDoc.addPage([pageWidth, pageHeight]);
     y = pageHeight - margin;
@@ -53,24 +43,12 @@ export async function generateContractPdf(
     if (y - needed < margin) newPage();
   };
 
-  const drawCenteredText = (
-    text: string,
-    size: number,
-    f = font,
-    color = black,
-  ) => {
+  const drawCenteredText = (text: string, size: number, f = font, color = black) => {
     const width = f.widthOfTextAtSize(text, size);
-    page.drawText(text, {
-      x: (pageWidth - width) / 2,
-      y,
-      size,
-      font: f,
-      color,
-    });
+    page.drawText(text, { x: (pageWidth - width) / 2, y, size, font: f, color });
     y -= size + 6;
   };
 
-  // Wraps text to contentWidth, supports inline bold via simple split on segments
   const wrapText = (text: string, size: number, f = font): string[] => {
     const words = text.split(' ');
     const lines: string[] = [];
@@ -88,13 +66,7 @@ export async function generateContractPdf(
     return lines;
   };
 
-  const drawParagraph = (
-    text: string,
-    size = 10,
-    f = font,
-    lineHeight = 14,
-    spacingAfter = 8,
-  ) => {
+  const drawParagraph = (text: string, size = 10, f = font, lineHeight = 14, spacingAfter = 8) => {
     const lines = wrapText(text, size, f);
     for (const line of lines) {
       ensureSpace(lineHeight);
@@ -104,22 +76,11 @@ export async function generateContractPdf(
     y -= spacingAfter;
   };
 
-  // Draws a paragraph where the leading "label" is bold, rest normal,
-  // wrapping naturally as one continuous block.
-  const drawLabeledParagraph = (
-    label: string,
-    body: string,
-    size = 10,
-    lineHeight = 14,
-    spacingAfter = 8,
-  ) => {
+  const drawLabeledParagraph = (label: string, body: string, size = 10, lineHeight = 14, spacingAfter = 8) => {
     const fullPlainWidth = fontBold.widthOfTextAtSize(label, size);
-    // Build combined text for wrapping purposes using bold width for label segment
     const words = body.split(' ');
     let lines: { text: string; bold: boolean }[][] = [];
-    let current: { text: string; bold: boolean }[] = [
-      { text: label, bold: true },
-    ];
+    let current: { text: string; bold: boolean }[] = [{ text: label, bold: true }];
     let currentWidth = fullPlainWidth;
 
     for (const word of words) {
@@ -154,12 +115,7 @@ export async function generateContractPdf(
     y -= size + 8;
   };
 
-  const drawLine = (
-    label: string,
-    value: string,
-    size = 10,
-    lineHeight = 16,
-  ) => {
+  const drawLine = (label: string, value: string, size = 10, lineHeight = 16) => {
     ensureSpace(lineHeight + 4);
     const labelWidth = fontBold.widthOfTextAtSize(label, size);
     page.drawText(label, { x: margin, y, size, font: fontBold, color: black });
@@ -169,7 +125,6 @@ export async function generateContractPdf(
 
     page.drawText(value, { x: valueX, y, size, font, color: black });
 
-    // underline from end of value to right margin (signature-style blank)
     const valueWidth = font.widthOfTextAtSize(value, size);
     page.drawLine({
       start: { x: valueX + valueWidth + 4, y: y - 2 },
@@ -204,24 +159,12 @@ export async function generateContractPdf(
     });
 
     if (value) {
-      page.drawText(value, {
-        x: sigLineStart + 4,
-        y,
-        size,
-        font,
-        color: black,
-      });
+      page.drawText(value, { x: sigLineStart + 4, y, size, font, color: black });
     }
 
     const dateLabelX = sigLineEnd + 20;
     const dateLabelWidth = fontBold.widthOfTextAtSize(dateLabel, size);
-    page.drawText(dateLabel, {
-      x: dateLabelX,
-      y,
-      size,
-      font: fontBold,
-      color: black,
-    });
+    page.drawText(dateLabel, { x: dateLabelX, y, size, font: fontBold, color: black });
 
     const dateLineStart = dateLabelX + dateLabelWidth + 4;
     page.drawLine({
@@ -232,13 +175,7 @@ export async function generateContractPdf(
     });
 
     if (dateValue) {
-      page.drawText(dateValue, {
-        x: dateLineStart + 4,
-        y,
-        size,
-        font,
-        color: black,
-      });
+      page.drawText(dateValue, { x: dateLineStart + 4, y, size, font, color: black });
     }
 
     y -= lineHeight + 12;
@@ -248,19 +185,13 @@ export async function generateContractPdf(
     y -= amount;
   };
 
-  // ===================== PAGE 1 =====================
+  // ===================== HEADER =====================
 
-  drawCenteredText(
-    'NEW JERSEY REAL ESTATE PURCHASE AND SALE AGREEMENT',
-    14,
-    fontBold,
-  );
+  drawCenteredText('NEW JERSEY REAL ESTATE PURCHASE AND SALE AGREEMENT', 14, fontBold);
   spacer(4);
 
   const effDay = data.effectiveDate.getDate();
-  const effMonth = data.effectiveDate.toLocaleDateString('en-US', {
-    month: 'long',
-  });
+  const effMonth = data.effectiveDate.toLocaleDateString('en-US', { month: 'long' });
   const effYearShort = String(data.effectiveDate.getFullYear()).slice(-2);
 
   drawParagraph(
@@ -352,9 +283,6 @@ export async function generateContractPdf(
     `Buyer may cancel this Agreement for any reason during the Inspection Period by providing written notice to Seller, upon which the Earnest Money Deposit shall be returned to Buyer in full.`,
   );
 
-  // ===================== PAGE 2 =====================
-  newPage();
-
   drawHeading('7. CLOSING.');
   drawParagraph(
     `Closing shall occur on or before ${data.closingDays} days from the conclusion of Attorney Review. Closing shall be held at a Title Company selected by Buyer. All transfer taxes shall be paid by Seller. Buyer shall pay for title insurance and closing fees.`,
@@ -373,14 +301,13 @@ export async function generateContractPdf(
   );
   spacer(20);
 
-  // Signature blocks (left empty, ready for DocuSign later)
   drawSignatureLine('SELLER SIGNATURE:', '', 'Date:', '');
   drawSignatureLine('Print Name:', data.sellerName, '', '');
   spacer(10);
 
   drawSignatureLine('BUYER SIGNATURE:', '', 'Date:', '');
   drawSignatureLine('Print Name:', '', '', '');
-  drawSignatureLine('By:', '', '(Authorized Member)', '');
+  drawSignatureLine('By:', '', '(Authorized Member)', '');   
 
   const pdfBytes = await pdfDoc.save();
   return Buffer.from(pdfBytes);
