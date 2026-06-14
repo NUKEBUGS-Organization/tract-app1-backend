@@ -4,11 +4,12 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
 
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -19,6 +20,7 @@ import { Role } from '../users/schemas/user.schema';
 import { ContractsService } from './contracts.service';
 import { CreateContractDto } from './dto/create-contract.dto';
 import type { AuthenticatedRequest } from 'src/common/interfaces/authenticated-request.interface';
+import { PaginationDto } from './dto/pagination.dto';
 
 @ApiTags('Contracts')
 @ApiBearerAuth('access-token')
@@ -41,6 +43,17 @@ export class ContractsController {
     req: AuthenticatedRequest,
   ) {
     return this.contractsService.createContract(listingId, req.user._id, dto);
+  }
+
+  @Get('my-contracts')
+  @ApiOperation({
+    summary: 'My contracts',
+  })
+  async myContracts(
+    @Request() req: AuthenticatedRequest,
+    @Query() pagination: PaginationDto,
+  ) {
+    return this.contractsService.myContracts(req.user._id, pagination);
   }
 
   @Get('/:id')

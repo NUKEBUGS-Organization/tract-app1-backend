@@ -23,6 +23,7 @@ import { CreateContractDto } from './dto/create-contract.dto';
 import { DealsService } from 'src/deals/deals.service';
 import { CloudinaryService } from '../common/services/cloudinary.service';
 import { generateContractPdf } from '../common/utils/pdf.generator';
+import { PaginationDto } from './dto/pagination.dto';
 
 @Injectable()
 export class ContractsService {
@@ -135,6 +136,47 @@ export class ContractsService {
     }
 
     return contract;
+  }
+
+  async myContracts(userId: string, pagination: PaginationDto) {
+    const page = pagination.page ?? 1;
+    const limit = pagination.limit ?? 20;
+
+    const filter = {
+      $or: [
+        {
+          seller_id: userId,
+        },
+        {
+          buyer_id: userId,
+        },
+      ],
+    };
+
+    const [data, total] = await Promise.all([
+      this.contractModel
+        .find(filter)
+        .populate('listing_id', 'address market_price')
+        .populate('seller_id', 'full_name email')
+        .populate('buyer_id', 'full_name email')
+        .sort({
+          createdAt: -1,
+        })
+        .skip((page - 1) * limit)
+        .limit(limit),
+
+      this.contractModel.countDocuments(filter),
+    ]);
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async signAsSeller(contractId: string, sellerId: string) {
