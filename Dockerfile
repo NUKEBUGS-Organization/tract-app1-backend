@@ -13,7 +13,6 @@ RUN npm ci --no-audit --no-fund
 COPY . .
 
 RUN npm run build && npm prune --omit=dev
-RUN cp -r src/mail/templates dist/mail/templates 
 
 # Production stage
 FROM node:22-bookworm-slim AS production
@@ -25,6 +24,7 @@ ENV NODE_ENV=production
 COPY package.json package-lock.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/src/mail/templates ./src/mail/templates
 
 USER node
 
