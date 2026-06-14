@@ -127,7 +127,7 @@ export class BidsService {
 
       await session.commitTransaction();
 
-      return bid[0];
+      return bid[0].toObject(); 
     } catch (error) {
       await session.abortTransaction();
       throw error;
