@@ -379,7 +379,7 @@ export class AdminService {
     const [data, total] = await Promise.all([
       this.contractModel
         .find()
-        .populate('listing_id')
+        .populate('property_id')
         .populate('seller_id', 'full_name')
         .populate('buyer_id', 'full_name')
         .skip((page - 1) * limit)
