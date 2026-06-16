@@ -31,7 +31,7 @@ export class ContractsController {
 
   @Post('/listing/:listingId')
   @UseGuards(RolesGuard)
-  @Roles(Role.SELLER)
+  @Roles(Role.SELLER,Role.WHOLESALER)
   createContract(
     @Param('listingId')
     listingId: string,

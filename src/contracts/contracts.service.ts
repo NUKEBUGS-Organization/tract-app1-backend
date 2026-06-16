@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 
 import {
   Contract,
@@ -145,10 +145,10 @@ export class ContractsService {
     const filter = {
       $or: [
         {
-          seller_id: userId,
+          seller_id: new Types.ObjectId(userId),
         },
         {
-          buyer_id: userId,
+          buyer_id: new Types.ObjectId(userId),
         },
       ],
     };
