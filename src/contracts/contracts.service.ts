@@ -156,7 +156,7 @@ export class ContractsService {
     const [data, total] = await Promise.all([
       this.contractModel
         .find(filter)
-        .populate('listing_id', 'address market_price')
+        .populate('property_id', 'address market_price')
         .populate('seller_id', 'full_name email')
         .populate('buyer_id', 'full_name email')
         .sort({
