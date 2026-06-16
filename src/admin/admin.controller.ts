@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Post,
+  Patch,
   Query,
   Request,
   UseGuards,
@@ -33,6 +34,7 @@ import { RejectListingDto } from './dto/reject-listing.dto';
 import { PaginationDto } from './dto/pagination.dto';
 
 import type { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
+import { UpdateListingStatusDto } from './dto/update-listing-status.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth('access-token')
@@ -233,6 +235,23 @@ export class AdminController {
     req: AuthenticatedRequest,
   ) {
     return this.adminService.rejectListing(listingId, dto.reason, req.user._id);
+  }
+
+  @Patch('listings/:id/status')
+  @ApiOperation({
+    summary: 'Update listing status',
+  })
+  async updateListingStatus(
+    @Param('id')
+    listingId: string,
+
+    @Body()
+    dto: UpdateListingStatusDto,
+
+    @Request()
+    req: AuthenticatedRequest,
+  ) {
+    return this.adminService.updateListingStatus(listingId, dto, req.user._id);
   }
 
   @Delete('listings/:id')

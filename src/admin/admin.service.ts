@@ -32,6 +32,7 @@ import {
   ChatMessageDocument,
 } from '../chat/schemas/chat-message.schema';
 import { PaginationDto } from './dto/pagination.dto';
+import { UpdateListingStatusDto } from './dto/update-listing-status.dto';
 
 @Injectable()
 export class AdminService {
@@ -88,13 +89,13 @@ export class AdminService {
   async getUsers(role?: Role, pagination?: PaginationDto) {
     const page = pagination?.page ?? 1;
     const limit = pagination?.limit ?? 20;
-  
+
     const filter: any = {};
-  
+
     if (role) {
       filter.role = role;
     }
-  
+
     const [data, total] = await Promise.all([
       this.userModel
         .find(filter)
@@ -104,10 +105,10 @@ export class AdminService {
         .skip((page - 1) * limit)
         .limit(limit)
         .sort({ createdAt: -1 }),
-  
+
       this.userModel.countDocuments(filter),
     ]);
-  
+
     return {
       data,
       pagination: {
@@ -314,6 +315,35 @@ export class AdminService {
 
     return {
       message: 'Listing rejected successfully',
+    };
+  }
+
+  async updateListingStatus(
+    listingId: string,
+    dto: UpdateListingStatusDto,
+    adminId: string,
+  ) {
+    const listing = await this.listingModel.findById(listingId);
+
+    if (!listing) {
+      throw new NotFoundException('Listing not found');
+    }
+
+    listing.status = dto.status;
+
+    listing.reviewed_by = new Types.ObjectId(adminId);
+
+    listing.reviewed_at = new Date();
+
+    if (dto.status === ListingStatus.CANCELLED) {
+      listing.rejection_reason = dto.reason ?? '';
+    }
+
+    await listing.save();
+
+    return {
+      message: 'Listing status updated',
+      listing,
     };
   }
 
@@ -537,7 +567,7 @@ export class AdminService {
 
     const filter = {
       room_id: new Types.ObjectId(roomId),
-      deleted_at : null
+      deleted_at: null,
     };
 
     const [data, total] = await Promise.all([
