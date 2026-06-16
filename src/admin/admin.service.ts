@@ -6,7 +6,7 @@ import {
 
 import { InjectModel } from '@nestjs/mongoose';
 
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Role } from '../users/schemas/user.schema';
 import { User, UserDocument, KycStatus } from '../users/schemas/user.schema';
 
@@ -88,24 +88,26 @@ export class AdminService {
   async getUsers(role?: Role, pagination?: PaginationDto) {
     const page = pagination?.page ?? 1;
     const limit = pagination?.limit ?? 20;
-
+  
     const filter: any = {};
-
+  
     if (role) {
       filter.role = role;
     }
-
+  
     const [data, total] = await Promise.all([
       this.userModel
         .find(filter)
-        .select('-password_hash')
+        .select(
+          '-password_hash -otp_code -otp_expires_at -otp_purpose -current_session_id -deleted_at',
+        )
         .skip((page - 1) * limit)
         .limit(limit)
         .sort({ createdAt: -1 }),
-
+  
       this.userModel.countDocuments(filter),
     ]);
-
+  
     return {
       data,
       pagination: {
@@ -534,7 +536,8 @@ export class AdminService {
     const limit = pagination.limit ?? 50;
 
     const filter = {
-      room_id: roomId,
+      room_id: new Types.ObjectId(roomId),
+      deleted_at : null
     };
 
     const [data, total] = await Promise.all([
