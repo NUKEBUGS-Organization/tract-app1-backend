@@ -97,7 +97,7 @@ export class ListingsService {
       // Cannot update after submitted/live
       if (
         [
-          ListingStatus.LIVE,
+          // ListingStatus.LIVE,
           ListingStatus.SUBMITTED,
           ListingStatus.UNDER_CONTRACT,
           ListingStatus.CLOSED,
