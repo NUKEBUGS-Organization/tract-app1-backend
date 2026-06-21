@@ -82,15 +82,36 @@ export class DocuSealService {
       `Creating DocuSeal submission for template ${this.templateId}`,
     );
 
-    const { data } = await this.client.post<DocuSealSubmission[]>(
-      '/api/submissions',
-      payload,
+    const { data } = await this.client.post<any>('/api/submissions', payload);
+
+    this.logger.log(`DocuSeal raw response: ${JSON.stringify(data)}`);
+
+    // DocuSeal returns a flat array of submitter objects:
+    // [{ id, submission_id, role, email, embed_src, status, ... }, ...]
+    const submitterArray: any[] = Array.isArray(data) ? data : [data];
+
+    if (!submitterArray.length || !submitterArray[0]?.submission_id) {
+      throw new Error(
+        `DocuSeal returned unexpected response. Response=${JSON.stringify(data)}`,
+      );
+    }
+
+    // Reconstruct into our DocuSealSubmission shape
+    const submission: DocuSealSubmission = {
+      id: submitterArray[0].submission_id,
+      submitters: submitterArray.map((s) => ({
+        id: s.id,
+        role: s.role,
+        email: s.email,
+        external_id: s.external_id,
+        embed_src: s.embed_src,
+        status: s.status,
+      })),
+    };
+
+    this.logger.log(
+      `DocuSeal submission created: ${submission.id} with ${submission.submitters.length} submitters`,
     );
-
-    // DocuSeal returns an array; the first element is the submission
-    const submission = Array.isArray(data) ? data[0] : (data as any);
-
-    this.logger.log(`DocuSeal submission created: ${submission.id}`);
     return submission;
   }
 
