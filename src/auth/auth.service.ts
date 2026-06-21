@@ -95,7 +95,7 @@ export class AuthService {
         throw error;
       }
       throw new InternalServerErrorException(
-        'Failed to send OTP. Please try again.',
+        `Failed to send OTP. Please try again. ${error}`,
       );
     }
   }
@@ -127,7 +127,7 @@ export class AuthService {
         throw error;
       }
       throw new InternalServerErrorException(
-        'Login failed. Please try again.',
+        `Login failed. Please try again. ${error}`,
       );
     }
   }
