@@ -28,6 +28,10 @@ import { User, UserDocument, Role } from '../users/schemas/user.schema';
 
 import { UploadMarketingProofDto } from './dto/upload-marketing-proof.dto';
 import { UploadMarketLaunchProofDto } from './dto/upload-market-launch-proof.dto';
+import {
+  ChatRoom,
+  ChatRoomDocument,
+} from '../chat/schemas/chat-room.schema';
 
 @Injectable()
 export class DealsService {
@@ -43,6 +47,9 @@ export class DealsService {
 
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+
+    @InjectModel(ChatRoom.name)
+    private readonly chatRoomModel: Model<ChatRoomDocument>,
 
     private readonly chatService: ChatService,
   ) {}
@@ -232,6 +239,17 @@ export class DealsService {
     await this.listingModel.findByIdAndUpdate(deal.listing_id, {
       status: ListingStatus.CLOSED,
     });
+
+    // Lock associated chat room
+    await this.chatRoomModel.findOneAndUpdate(
+      {
+        deal_id: deal._id,
+      },
+      {
+        is_locked: true,
+        is_active: false,
+      },
+    );
 
     return {
       message: 'Deal closed successfully',

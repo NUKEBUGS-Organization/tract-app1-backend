@@ -22,6 +22,7 @@ import { SmsModule } from './sms/sms.module';
 import { ContractsModule } from './contracts/contract.module';
 import { DealsModule } from './deals/deals.module';
 import { ChatModule } from './chat/chat.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { ChatModule } from './chat/chat.module';
     }]),
     DatabaseModule,
     AuthModule,
+    AdminModule,
     UsersModule,
     ListingsModule,
     BidsModule,

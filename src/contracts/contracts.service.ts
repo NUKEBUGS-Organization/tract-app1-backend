@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 
@@ -23,9 +24,12 @@ import { CreateContractDto } from './dto/create-contract.dto';
 import { DealsService } from 'src/deals/deals.service';
 import { CloudinaryService } from '../common/services/cloudinary.service';
 import { generateContractPdf } from '../common/utils/pdf.generator';
+import { DocuSealService } from '../docuseal/docuseal.service';
 
 @Injectable()
 export class ContractsService {
+  private readonly logger = new Logger(ContractsService.name);
+
   constructor(
     @InjectModel(Contract.name)
     private readonly contractModel: Model<ContractDocument>,
@@ -44,6 +48,7 @@ export class ContractsService {
 
     private readonly dealsService: DealsService,
     private readonly cloudinaryService: CloudinaryService,
+    private readonly docuSealService: DocuSealService,
   ) {}
 
   async createContract(
@@ -71,15 +76,11 @@ export class ContractsService {
       throw new BadRequestException('Only selected bid can create contract');
     }
 
-    const existing = await this.contractModel.findOne({
-      bid_id: bid._id,
-    });
-
+    const existing = await this.contractModel.findOne({ bid_id: bid._id });
     if (existing) {
       return existing;
     }
 
-    // Fetch seller and buyer details for the PDF
     const [seller, buyer] = await Promise.all([
       this.userModel.findById(listing.seller_id),
       this.userModel.findById(bid.bidder_id),
@@ -89,7 +90,9 @@ export class ContractsService {
       throw new NotFoundException('Seller or Buyer not found');
     }
 
-    // Generate the contract PDF using the agreed-upon terms
+    // Generate draft PDF and upload to Cloudinary
+    const emdAmount = dto.emd_amount ?? Math.min(1000, bid.bid_price);
+
     const pdfBuffer = await generateContractPdf({
       sellerName: seller.full_name,
       sellerAddress: `${listing.address}, ${listing.state_code} ${listing.zip_code}`,
@@ -99,14 +102,12 @@ export class ContractsService {
       propertyBlock: dto.property_block,
       propertyLot: dto.property_lot,
       purchasePrice: bid.bid_price,
-      emdAmount: dto.emd_amount ?? Math.min(1000, bid.bid_price),
-      balanceAmount:
-        bid.bid_price - (dto.emd_amount ?? Math.min(1000, bid.bid_price)),
+      emdAmount,
+      balanceAmount: bid.bid_price - emdAmount,
       closingDays: dto.closing_days ?? 120,
       effectiveDate: new Date(),
     });
 
-    // Upload generated PDF to Cloudinary
     const uploadResult = await this.cloudinaryService.uploadFile(
       pdfBuffer,
       `contracts/${listing._id}`,
@@ -114,13 +115,81 @@ export class ContractsService {
       'application/pdf',
     );
 
-    return this.contractModel.create({
+    // Create local contract record first so we have an _id for external_id
+    const contract = await this.contractModel.create({
       property_id: listing._id,
       bid_id: bid._id,
       seller_id: listing.seller_id,
       buyer_id: bid.bidder_id,
       pdf_url: uploadResult.secure_url,
     });
+
+    // Create DocuSeal submission
+    try {
+      const submission = await this.docuSealService.createSubmission([
+        {
+          role: 'Seller',
+          email: seller.email,
+          name: seller.full_name,
+          external_id: `${contract._id}:seller`,
+          values: {
+            SellerName: seller.full_name,
+            PropertyAddress: `${listing.address}, ${listing.state_code} ${listing.zip_code}`,
+            PurchasePrice: bid.bid_price,
+            EMDAmount: emdAmount,
+            ClosingDays: dto.closing_days ?? 120,
+          },
+        },
+        {
+          role: 'Buyer',
+          email: buyer.email,
+          name: buyer.full_name,
+          external_id: `${contract._id}:buyer`,
+          values: {
+            BuyerName: `${buyer.full_name} and/or Assigns`,
+            PropertyAddress: `${listing.address}, ${listing.state_code} ${listing.zip_code}`,
+            PurchasePrice: bid.bid_price,
+            EMDAmount: emdAmount,
+            ClosingDays: dto.closing_days ?? 120,
+          },
+        },
+      ]);
+
+      const sellerSubmitter = submission.submitters.find(
+        (s) => s.role === 'Seller',
+      );
+      const buyerSubmitter = submission.submitters.find(
+        (s) => s.role === 'Buyer',
+      );
+
+      contract.docuseal_submission_id = String(submission.id);
+      if (sellerSubmitter) {
+        contract.docuseal_seller_submitter_id = String(sellerSubmitter.id);
+        contract.docuseal_seller_embed_src = sellerSubmitter.embed_src;
+        contract.docuseal_seller_status = sellerSubmitter.status ?? 'pending';
+      }
+      if (buyerSubmitter) {
+        contract.docuseal_buyer_submitter_id = String(buyerSubmitter.id);
+        contract.docuseal_buyer_embed_src = buyerSubmitter.embed_src;
+        contract.docuseal_buyer_status = buyerSubmitter.status ?? 'pending';
+      }
+
+      await contract.save();
+
+      this.logger.log(
+        `DocuSeal submission ${submission.id} linked to contract ${contract._id}`,
+      );
+    } catch (err) {
+      // DocuSeal failure should not block contract creation — log and continue.
+      // The sign-url endpoint will surface a clear error if signing is attempted
+      // before the submission is created.
+      this.logger.error(
+        `Failed to create DocuSeal submission for contract ${contract._id}: ${err?.message}`,
+        err?.stack,
+      );
+    }
+
+    return contract;
   }
 
   async getContract(contractId: string) {
@@ -137,16 +206,176 @@ export class ContractsService {
     return contract;
   }
 
-  async signAsSeller(contractId: string, sellerId: string) {
+  /**
+   * Returns the signer-specific DocuSeal embed URL for the requesting user.
+   * Seller gets the seller signing URL; Buyer gets the buyer signing URL.
+   */
+  async getSignUrl(
+    contractId: string,
+    userId: string,
+  ): Promise<{ embed_src: string }> {
     const contract = await this.contractModel.findById(contractId);
 
     if (!contract) {
-      throw new NotFoundException();
+      throw new NotFoundException('Contract not found');
     }
 
-    if (contract.seller_id.toString() !== sellerId) {
-      throw new ForbiddenException();
+    if (!contract.docuseal_submission_id) {
+      throw new BadRequestException(
+        'DocuSeal submission has not been created for this contract yet',
+      );
     }
+
+    const isSeller = contract.seller_id.toString() === userId;
+    const isBuyer = contract.buyer_id.toString() === userId;
+
+    if (!isSeller && !isBuyer) {
+      throw new ForbiddenException('You are not a party to this contract');
+    }
+
+    if (contract.status === ContractStatus.CANCELLED) {
+      throw new BadRequestException('This contract has been cancelled');
+    }
+
+    if (contract.status === ContractStatus.SIGNED) {
+      throw new BadRequestException('This contract has already been signed');
+    }
+
+    const embedSrc = isSeller
+      ? contract.docuseal_seller_embed_src
+      : contract.docuseal_buyer_embed_src;
+
+    if (!embedSrc) {
+      throw new BadRequestException(
+        'Signing URL not available yet. Please try again shortly.',
+      );
+    }
+
+    return { embed_src: embedSrc };
+  }
+
+  /**
+   * Returns the signed PDF URL. Only accessible by seller or buyer.
+   */
+  async getSignedPdf(
+    contractId: string,
+    userId: string,
+  ): Promise<{ signed_pdf_url: string }> {
+    const contract = await this.contractModel.findById(contractId);
+
+    if (!contract) {
+      throw new NotFoundException('Contract not found');
+    }
+
+    const isSeller = contract.seller_id.toString() === userId;
+    const isBuyer = contract.buyer_id.toString() === userId;
+
+    if (!isSeller && !isBuyer) {
+      throw new ForbiddenException('You are not a party to this contract');
+    }
+
+    if (contract.status !== ContractStatus.SIGNED || !contract.signed_pdf_url) {
+      throw new BadRequestException(
+        'Signed PDF is not available yet. Both parties must complete signing.',
+      );
+    }
+
+    return { signed_pdf_url: contract.signed_pdf_url };
+  }
+
+  /**
+   * Called by the DocuSeal webhook when a submitter completes signing.
+   * Validates the secret, updates timestamps, and creates the deal when both
+   * parties have signed.
+   */
+  async handleDocuSealWebhook(
+    secret: string,
+    event: any,
+  ): Promise<{ ok: boolean }> {
+    if (secret !== this.docuSealService.webhookSecret) {
+      throw new ForbiddenException('Invalid webhook secret');
+    }
+
+    // We only care about submitter_completed events
+    if (event.event_type !== 'submitter_completed') {
+      return { ok: true };
+    }
+
+    const submitter = event.data;
+    const externalId: string = submitter?.external_id ?? '';
+
+    if (!externalId || !externalId.includes(':')) {
+      this.logger.warn(
+        `DocuSeal webhook received with unrecognised external_id: ${externalId}`,
+      );
+      return { ok: true };
+    }
+
+    const [contractId, role] = externalId.split(':');
+
+    const contract = await this.contractModel.findById(contractId);
+
+    if (!contract) {
+      this.logger.warn(`DocuSeal webhook: contract ${contractId} not found`);
+      return { ok: true };
+    }
+
+    if (role === 'seller') {
+      contract.seller_signed_at = new Date();
+      contract.docuseal_seller_status = 'completed';
+      this.logger.log(`Seller signed contract ${contractId}`);
+    } else if (role === 'buyer') {
+      contract.buyer_signed_at = new Date();
+      contract.docuseal_buyer_status = 'completed';
+      this.logger.log(`Buyer signed contract ${contractId}`);
+    } else {
+      this.logger.warn(
+        `DocuSeal webhook: unknown role "${role}" in external_id ${externalId}`,
+      );
+      return { ok: true };
+    }
+
+    // If both parties have now signed, finalise the contract
+    if (contract.seller_signed_at && contract.buyer_signed_at) {
+      contract.status = ContractStatus.SIGNED;
+
+      // Prefer the signed PDF from the submission-level documents list;
+      // fall back to the submitter-level documents if present
+      const signedUrl =
+        submitter?.submission?.documents?.[0]?.url ??
+        submitter?.documents?.[0]?.url;
+
+      if (signedUrl) {
+        contract.signed_pdf_url = signedUrl;
+      }
+
+      const auditUrl =
+        submitter?.submission?.audit_log_url ?? submitter?.audit_log_url;
+
+      if (auditUrl) {
+        contract.audit_log_url = auditUrl;
+      }
+
+      await contract.save();
+
+      this.logger.log(`Contract ${contractId} fully signed — creating deal`);
+
+      await this.dealsService.createDealFromContract(contractId);
+    } else {
+      await contract.save();
+    }
+
+    return { ok: true };
+  }
+
+  // ── Legacy / admin endpoints (kept for local testing; not used by production frontend) ──
+
+  async signAsSeller(contractId: string, sellerId: string) {
+    const contract = await this.contractModel.findById(contractId);
+
+    if (!contract) throw new NotFoundException();
+    if (contract.seller_id.toString() !== sellerId)
+      throw new ForbiddenException();
 
     contract.seller_signed_at = new Date();
 
@@ -155,20 +384,15 @@ export class ContractsService {
     }
 
     await contract.save();
-
     return contract;
   }
 
   async signAsBuyer(contractId: string, buyerId: string) {
     const contract = await this.contractModel.findById(contractId);
 
-    if (!contract) {
-      throw new NotFoundException();
-    }
-
-    if (contract.buyer_id.toString() !== buyerId) {
+    if (!contract) throw new NotFoundException();
+    if (contract.buyer_id.toString() !== buyerId)
       throw new ForbiddenException();
-    }
 
     contract.buyer_signed_at = new Date();
 
@@ -188,40 +412,29 @@ export class ContractsService {
   async cancelContract(contractId: string) {
     const contract = await this.contractModel.findById(contractId);
 
-    if (!contract) {
-      throw new NotFoundException();
-    }
+    if (!contract) throw new NotFoundException();
 
     contract.status = ContractStatus.CANCELLED;
 
     await contract.save();
-
     return contract;
   }
 
   async getContractsByListing(listingId: string, userId: string) {
     const listing = await this.listingModel.findById(listingId);
 
-    if (!listing) {
-      throw new NotFoundException('Listing not found');
-    }
-
-    if (listing.seller_id.toString() !== userId) {
+    if (!listing) throw new NotFoundException('Listing not found');
+    if (listing.seller_id.toString() !== userId)
       throw new ForbiddenException('Access denied');
-    }
 
     return this.contractModel
-      .find({
-        property_id: listing._id,
-      })
+      .find({ property_id: listing._id })
       .populate('buyer_id', 'full_name email phone')
       .populate('seller_id', 'full_name email phone')
       .populate({
         path: 'bid_id',
         select: 'bid_price inspection_period due_diligence_period status',
       })
-      .sort({
-        createdAt: -1,
-      });
+      .sort({ createdAt: -1 });
   }
 }

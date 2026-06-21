@@ -5,9 +5,10 @@ export type ListingDocument = Listing & Document;
 
 export enum ListingStatus {
   DRAFT = 'draft',
-  SUBMITTED = 'submitted',       // awaiting auto-live (1hr job queue)
-  LIVE = 'live',                  // circulating to verified partners
-  PAUSED = 'paused',             // 10 bids reached
+  SUBMITTED = 'submitted',
+  LIVE = 'live',
+  REJECTED = 'rejected',
+  PAUSED = 'paused',
   UNDER_CONTRACT = 'under_contract',
   CLOSED = 'closed',
   CANCELLED = 'cancelled',
@@ -134,6 +135,19 @@ export class Listing {
 
   @Prop({ default: null })
   live_at: Date; // when listing went live
+
+  @Prop({ default: null })
+  rejection_reason: string;
+
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'User',
+    default: null,
+  })
+  reviewed_by: Types.ObjectId;
+
+  @Prop({ default: null })
+  reviewed_at: Date;
 
   // ─── Soft delete ──────────────────────────────────────────────────────────
   @Prop({ default: null })
