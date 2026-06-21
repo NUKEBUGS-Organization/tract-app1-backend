@@ -9,7 +9,6 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
 import {
   Listing,
   ListingDocument,
@@ -31,8 +30,6 @@ const MAX_BIDS = 10;
 @Injectable()
 export class ListingsService {
   private readonly logger = new Logger(ListingsService.name);
-  private readonly ENCRYPTION_KEY: Buffer;
-  private readonly IV_LENGTH = 16;
 
   constructor(
     @InjectModel(Listing.name) private listingModel: Model<ListingDocument>,
@@ -99,6 +96,7 @@ export class ListingsService {
         [
           // ListingStatus.LIVE,
           ListingStatus.SUBMITTED,
+          ListingStatus.WITHDRAWN,
           ListingStatus.UNDER_CONTRACT,
           ListingStatus.CLOSED,
         ].includes(listing.status)
@@ -109,11 +107,6 @@ export class ListingsService {
       }
 
       const updateData: any = { ...dto };
-
-      // Re-encrypt hidden_reserve if updated
-      if (dto.hidden_reserve) {
-        updateData.hidden_reserve = this.encrypt(dto.hidden_reserve.toString());
-      }
 
       const updated = await this.listingModel
         .findByIdAndUpdate(listingId, { $set: updateData }, { new: true })
@@ -163,14 +156,8 @@ export class ListingsService {
         );
       }
 
-      // Schedule auto-live job (1 hour from now)
-      const liveAt = new Date(Date.now() + 60 * 60 * 1000);
-      const jobId = `job_${listing._id}_${Date.now()}`;
-
       await this.listingModel.findByIdAndUpdate(listingId, {
-        status: ListingStatus.SUBMITTED,
-        // auto_live_job_id: jobId,
-        // live_at: liveAt,
+        status: ListingStatus.SUBMITTED
       });
 
       return {
@@ -499,7 +486,7 @@ export class ListingsService {
 
       await this.listingModel.findByIdAndUpdate(listingId, {
         status: ListingStatus.WITHDRAWN,
-        deleted_at: new Date(),
+        deleted_at: null,
       });
 
       this.logger.log(`Listing ${listingId} withdrawn by seller ${sellerId}`);
@@ -576,30 +563,4 @@ export class ListingsService {
     }
   }
 
-  // ─── PRIVATE: Encrypt ─────────────────────────────────────────────────────
-  private encrypt(text: string): string {
-    const iv = crypto.randomBytes(this.IV_LENGTH);
-    const cipher = crypto.createCipheriv(
-      'aes-256-cbc',
-      this.ENCRYPTION_KEY,
-      iv,
-    );
-    const encrypted = Buffer.concat([cipher.update(text), cipher.final()]);
-    return iv.toString('hex') + ':' + encrypted.toString('hex');
-  }
-
-  decryptReserve(text: string): number {
-    const [ivHex, encryptedHex] = text.split(':');
-    const iv = Buffer.from(ivHex, 'hex');
-    const decipher = crypto.createDecipheriv(
-      'aes-256-cbc',
-      this.ENCRYPTION_KEY,
-      iv,
-    );
-    const decrypted = Buffer.concat([
-      decipher.update(Buffer.from(encryptedHex, 'hex')),
-      decipher.final(),
-    ]);
-    return parseFloat(decrypted.toString());
-  }
 }
