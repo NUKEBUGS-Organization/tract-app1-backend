@@ -57,8 +57,37 @@ export class Contract {
   @Prop()
   buyer_signed_at: Date;
 
+  // ── DocuSeal fields ──────────────────────────────────────────────────────────
+
   @Prop()
-  docusign_envelope_id: string;
+  docuseal_submission_id: string;
+
+  @Prop()
+  docuseal_seller_submitter_id: string;
+
+  @Prop()
+  docuseal_buyer_submitter_id: string;
+
+  @Prop()
+  docuseal_seller_embed_src: string;
+
+  @Prop()
+  docuseal_buyer_embed_src: string;
+
+  @Prop({ default: 'pending' })
+  docuseal_seller_status: string;
+
+  @Prop({ default: 'pending' })
+  docuseal_buyer_status: string;
+
+  /** URL of the final signed PDF returned by DocuSeal after both parties sign. */
+  @Prop()
+  signed_pdf_url: string;
+
+  @Prop()
+  audit_log_url: string;
+
+  // ─────────────────────────────────────────────────────────────────────────────
 
   @Prop({
     default: null,

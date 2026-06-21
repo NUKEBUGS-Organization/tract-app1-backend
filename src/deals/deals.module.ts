@@ -8,6 +8,7 @@ import { Contract, ContractSchema } from '../contracts/schemas/contract.schema';
 import { Listing, ListingSchema } from '../listings/schemas/listing.schema';
 
 import { User, UserSchema } from '../users/schemas/user.schema';
+import { ChatRoom, ChatRoomSchema } from 'src/chat/schemas/chat-room.schema';
 
 import { DealsService } from './deals.service';
 import { DealsController } from './deals.controller';
@@ -32,6 +33,7 @@ import { ChatModule } from '../chat/chat.module';
         name: User.name,
         schema: UserSchema,
       },
+      { name: ChatRoom.name, schema: ChatRoomSchema },
     ]),
     forwardRef(() => ChatModule)
   ],
