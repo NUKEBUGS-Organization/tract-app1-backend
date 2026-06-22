@@ -91,22 +91,19 @@ export class ListingsService {
         throw new ForbiddenException('You do not own this listing');
       }
 
-      // Cannot update after submitted/live
-      if (
-        [
-          // ListingStatus.LIVE,
-          ListingStatus.SUBMITTED,
-          ListingStatus.WITHDRAWN,
-          ListingStatus.UNDER_CONTRACT,
-          ListingStatus.CLOSED,
-        ].includes(listing.status)
-      ) {
+      // Only draft and withdrawn listings can be edited
+      const editableStatuses = [ListingStatus.DRAFT, ListingStatus.WITHDRAWN];
+
+      if (!editableStatuses.includes(listing.status)) {
         throw new BadRequestException(
-          `Cannot update listing in "${listing.status}" status`,
+          `Cannot update listing in "${listing.status}" status. Only draft or withdrawn listings can be edited.`,
         );
       }
 
-      const updateData: any = { ...dto };
+      const updateData = {
+        ...dto,
+        status: ListingStatus.SUBMITTED,
+      };
 
       const updated = await this.listingModel
         .findByIdAndUpdate(listingId, { $set: updateData }, { new: true })
@@ -137,9 +134,13 @@ export class ListingsService {
         throw new ForbiddenException('You do not own this listing');
       }
 
-      if (listing.status !== ListingStatus.DRAFT) {
+      const submittableStatuses = [
+        ListingStatus.DRAFT,
+        ListingStatus.WITHDRAWN,
+      ];
+      if (!submittableStatuses.includes(listing.status)) {
         throw new BadRequestException(
-          `Listing is already "${listing.status}". Only drafts can be submitted.`,
+          `Listing is already "${listing.status}". Only drafts or withdrawn listings can be submitted.`,
         );
       }
 
@@ -157,13 +158,11 @@ export class ListingsService {
       }
 
       await this.listingModel.findByIdAndUpdate(listingId, {
-        status: ListingStatus.SUBMITTED
+        status: ListingStatus.SUBMITTED,
       });
 
       return {
-        message: 'Listing submitted. It will go live in 1 hour.',
-        // live_at: liveAt,
-        // job_id: jobId,
+        message: 'Listing submitted. It will go live once admin approves it.',
       };
     } catch (error) {
       if (
@@ -562,5 +561,4 @@ export class ListingsService {
       throw new InternalServerErrorException('Failed to fetch dashboard.');
     }
   }
-
 }

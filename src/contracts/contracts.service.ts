@@ -296,61 +296,125 @@ export class ContractsService {
       throw new ForbiddenException('Invalid webhook secret');
     }
 
-    // We only care about submitter_completed events
-    if (event.event_type !== 'submitter_completed') {
+    const eventType = event?.event_type;
+    const data = event?.data || {};
+
+    this.logger.log(
+      `DocuSeal webhook processing: event_type=${eventType}, data=${JSON.stringify(data)}`,
+    );
+
+    const allowedEvents = ['submitter_completed', 'form.completed'];
+
+    if (!allowedEvents.includes(eventType)) {
+      this.logger.log(`Ignoring DocuSeal event: ${eventType}`);
       return { ok: true };
     }
 
-    const submitter = event.data;
-    const externalId: string = submitter?.external_id ?? '';
+    const externalId =
+      data?.external_id ||
+      data?.submitter?.external_id ||
+      data?.form?.external_id ||
+      '';
 
-    if (!externalId || !externalId.includes(':')) {
-      this.logger.warn(
-        `DocuSeal webhook received with unrecognised external_id: ${externalId}`,
-      );
-      return { ok: true };
+    const submissionId =
+      data?.submission_id ||
+      data?.submission?.id ||
+      data?.submission?.submission_id ||
+      '';
+
+    const submitterId =
+      data?.id || data?.submitter_id || data?.submitter?.id || '';
+
+    let contractId = '';
+    let role = '';
+
+    if (externalId && externalId.includes(':')) {
+      const parts = externalId.split(':');
+      contractId = parts[0];
+      role = parts[1];
     }
 
-    const [contractId, role] = externalId.split(':');
+    let contract: ContractDocument | null = null;
 
-    const contract = await this.contractModel.findById(contractId);
+    if (contractId) {
+      contract = await this.contractModel.findById(contractId);
+    }
+
+    if (!contract && submissionId) {
+      contract = await this.contractModel.findOne({
+        docuseal_submission_id: String(submissionId),
+      });
+    }
+
+    if (!contract && submitterId) {
+      contract = await this.contractModel.findOne({
+        $or: [
+          { docuseal_seller_submitter_id: String(submitterId) },
+          { docuseal_buyer_submitter_id: String(submitterId) },
+        ],
+      });
+    }
 
     if (!contract) {
-      this.logger.warn(`DocuSeal webhook: contract ${contractId} not found`);
+      this.logger.warn(
+        `DocuSeal webhook: contract not found. external_id=${externalId}, submission_id=${submissionId}, submitter_id=${submitterId}`,
+      );
+
       return { ok: true };
     }
 
-    if (role === 'seller') {
-      contract.seller_signed_at = new Date();
+    if (!role && submitterId) {
+      if (
+        String(contract.docuseal_seller_submitter_id) === String(submitterId)
+      ) {
+        role = 'seller';
+      }
+
+      if (
+        String(contract.docuseal_buyer_submitter_id) === String(submitterId)
+      ) {
+        role = 'buyer';
+      }
+    }
+
+    if (!role && data?.role) {
+      role = String(data.role).toLowerCase();
+    }
+
+    if (role === 'seller' || role === 'Seller') {
+      contract.seller_signed_at = contract.seller_signed_at ?? new Date();
       contract.docuseal_seller_status = 'completed';
-      this.logger.log(`Seller signed contract ${contractId}`);
-    } else if (role === 'buyer') {
-      contract.buyer_signed_at = new Date();
+
+      this.logger.log(`Seller signed contract ${contract._id}`);
+    } else if (role === 'buyer' || role === 'Buyer') {
+      contract.buyer_signed_at = contract.buyer_signed_at ?? new Date();
       contract.docuseal_buyer_status = 'completed';
-      this.logger.log(`Buyer signed contract ${contractId}`);
+
+      this.logger.log(`Buyer signed contract ${contract._id}`);
     } else {
       this.logger.warn(
-        `DocuSeal webhook: unknown role "${role}" in external_id ${externalId}`,
+        `DocuSeal webhook: could not identify signer role. contract=${contract._id}, external_id=${externalId}, submitter_id=${submitterId}, role=${role}`,
       );
+
       return { ok: true };
     }
 
-    // If both parties have now signed, finalise the contract
     if (contract.seller_signed_at && contract.buyer_signed_at) {
       contract.status = ContractStatus.SIGNED;
 
-      // Prefer the signed PDF from the submission-level documents list;
-      // fall back to the submitter-level documents if present
       const signedUrl =
-        submitter?.submission?.documents?.[0]?.url ??
-        submitter?.documents?.[0]?.url;
+        data?.submission?.documents?.[0]?.url ??
+        data?.documents?.[0]?.url ??
+        contract.signed_pdf_url;
 
       if (signedUrl) {
         contract.signed_pdf_url = signedUrl;
       }
 
       const auditUrl =
-        submitter?.submission?.audit_log_url ?? submitter?.audit_log_url;
+        data?.submission?.audit_log_url ??
+        data?.audit_log_url ??
+        contract.audit_log_url;
 
       if (auditUrl) {
         contract.audit_log_url = auditUrl;
@@ -358,9 +422,9 @@ export class ContractsService {
 
       await contract.save();
 
-      this.logger.log(`Contract ${contractId} fully signed — creating deal`);
+      this.logger.log(`Contract ${contract._id} fully signed — creating deal`);
 
-      await this.dealsService.createDealFromContract(contractId);
+      await this.dealsService.createDealFromContract(contract._id.toString());
     } else {
       await contract.save();
     }
