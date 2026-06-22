@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
@@ -19,6 +20,7 @@ import { Role } from '../users/schemas/user.schema';
 import { ContractsService } from './contracts.service';
 import { CreateContractDto } from './dto/create-contract.dto';
 import type { AuthenticatedRequest } from 'src/common/interfaces/authenticated-request.interface';
+import { PaginationDto } from 'src/admin/dto/pagination.dto';
 
 @ApiTags('Contracts')
 @ApiBearerAuth('access-token')
@@ -54,6 +56,17 @@ export class ContractsController {
   @ApiOperation({ summary: 'Get a single contract by ID' })
   getContract(@Param('id') id: string) {
     return this.contractsService.getContract(id);
+  }
+
+  @Get('my-contracts')
+  @ApiOperation({
+    summary: 'My contracts',
+  })
+  async myContracts(
+    @Request() req: AuthenticatedRequest,
+    @Query() pagination: PaginationDto,
+  ) {
+    return this.contractsService.myContracts(req.user._id, pagination);
   }
 
   /**
