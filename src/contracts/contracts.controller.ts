@@ -41,6 +41,17 @@ export class ContractsController {
     return this.contractsService.createContract(listingId, req.user._id, dto);
   }
 
+  @Get('my-contracts')
+  @ApiOperation({
+    summary: 'My contracts',
+  })
+  async myContracts(
+    @Request() req: AuthenticatedRequest,
+    @Query() pagination: PaginationDto,
+  ) {
+    return this.contractsService.myContracts(req.user._id, pagination);
+  }
+
   @Get('/listing/:listingId')
   @UseGuards(RolesGuard)
   @Roles(Role.SELLER)
@@ -56,17 +67,6 @@ export class ContractsController {
   @ApiOperation({ summary: 'Get a single contract by ID' })
   getContract(@Param('id') id: string) {
     return this.contractsService.getContract(id);
-  }
-
-  @Get('my-contracts')
-  @ApiOperation({
-    summary: 'My contracts',
-  })
-  async myContracts(
-    @Request() req: AuthenticatedRequest,
-    @Query() pagination: PaginationDto,
-  ) {
-    return this.contractsService.myContracts(req.user._id, pagination);
   }
 
   /**
