@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 
 import {
   Contract,
@@ -25,6 +25,7 @@ import { DealsService } from 'src/deals/deals.service';
 import { CloudinaryService } from '../common/services/cloudinary.service';
 import { generateContractPdf } from '../common/utils/pdf.generator';
 import { DocuSealService } from '../docuseal/docuseal.service';
+import { PaginationDto } from 'src/admin/dto/pagination.dto';
 
 @Injectable()
 export class ContractsService {
@@ -204,6 +205,47 @@ export class ContractsService {
     }
 
     return contract;
+  }
+
+  async myContracts(userId: string, pagination: PaginationDto) {
+    const page = pagination.page ?? 1;
+    const limit = pagination.limit ?? 20;
+
+    const filter = {
+      $or: [
+        {
+          seller_id: new Types.ObjectId(userId),
+        },
+        {
+          buyer_id: new Types.ObjectId(userId),
+        },
+      ],
+    };
+
+    const [data, total] = await Promise.all([
+      this.contractModel
+        .find(filter)
+        .populate('property_id', 'address market_price')
+        .populate('seller_id', 'full_name email')
+        .populate('buyer_id', 'full_name email')
+        .sort({
+          createdAt: -1,
+        })
+        .skip((page - 1) * limit)
+        .limit(limit),
+
+      this.contractModel.countDocuments(filter),
+    ]);
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   /**
