@@ -1,0 +1,48 @@
+{{#> layouts/main}}
+  {{#*inline "body"}}
+  <div class="email-body">
+    <h1>New offer received!</h1>
+    <p>Hi {{seller_name}},</p>
+    <p>
+      An investor has submitted an offer on your property. Log in to review the
+      offer details and respond.
+    </p>
+
+    <div class="info-box">
+      <div class="info-row">
+        <span class="info-label">Property</span>
+        <span class="info-value">{{address}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Offer Amount</span>
+        <span class="info-value">${{formatNumber bid_price}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Submitted By</span>
+        <span class="info-value">{{bidder_name}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Total Offers</span>
+        <span class="info-value">{{bid_count}} / 10</span>
+      </div>
+    </div>
+
+    {{#if (gte bid_count 8)}}
+    <div class="alert-box">
+      ⚠️ Your listing is approaching the 10-offer cap ({{bid_count}}/10).
+      Once 10 offers are received, the listing will be paused automatically.
+    </div>
+    {{/if}}
+
+    <div class="btn-wrap">
+      <a href="{{appUrl}}/listings/{{listing_id}}/bids" class="btn">Review All Offers</a>
+    </div>
+
+    <hr class="divider" />
+    <p class="muted">
+      You can accept an offer, assign backup positions, or reject offers from your
+      seller dashboard at any time.
+    </p>
+  </div>
+  {{/inline}}
+{{/layouts/main}}

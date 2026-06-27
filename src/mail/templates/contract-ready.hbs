@@ -1,0 +1,46 @@
+{{#> layouts/main}}
+  {{#*inline "body"}}
+  <div class="email-body">
+    <h1>Contract ready for your signature</h1>
+    <p>Hi {{recipient_name}},</p>
+    <p>
+      A purchase contract for the property below has been generated and is
+      awaiting your signature. Please review and sign at your earliest convenience.
+    </p>
+
+    <div class="info-box">
+      <div class="info-row">
+        <span class="info-label">Property</span>
+        <span class="info-value">{{address}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Your Role</span>
+        <span class="info-value">{{#if (eq role "seller")}}Seller{{else}}Buyer{{/if}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Counterparty</span>
+        <span class="info-value">{{counterparty_name}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Contract ID</span>
+        <span class="info-value">#{{contract_id}}</span>
+      </div>
+    </div>
+
+    <div class="alert-box">
+      ⏱️ Please sign the contract promptly. Unsigned contracts may be subject to
+      expiration per the terms of the agreement.
+    </div>
+
+    <div class="btn-wrap">
+      <a href="{{appUrl}}/contracts/{{contract_id}}" class="btn">Review &amp; Sign Contract</a>
+    </div>
+
+    <hr class="divider" />
+    <p class="muted">
+      You'll receive a confirmation email once all parties have signed and the
+      contract is fully executed.
+    </p>
+  </div>
+  {{/inline}}
+{{/layouts/main}}

@@ -1,0 +1,38 @@
+{{#> layouts/main}}
+  {{#*inline "body"}}
+  <div class="email-body">
+    <h1>🎉 Your listing is now live!</h1>
+    <p>Hi {{seller_name}},</p>
+    <p>
+      Great news — your property has been reviewed and approved by our team.
+      It is now visible to qualified investors on the TRACT platform.
+    </p>
+
+    <div class="info-box">
+      <div class="info-row">
+        <span class="info-label">Property</span>
+        <span class="info-value">{{address}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Status</span>
+        <span class="info-value">Live</span>
+      </div>
+    </div>
+
+    <p>
+      Investors matching your property criteria will be notified immediately.
+      You'll receive an alert as soon as an offer comes in.
+    </p>
+
+    <div class="btn-wrap">
+      <a href="{{appUrl}}/listings/{{listing_id}}" class="btn">View Your Listing</a>
+    </div>
+
+    <hr class="divider" />
+    <p class="muted">
+      Offers will appear in your seller dashboard. You can review, accept, or assign
+      backup positions at any time.
+    </p>
+  </div>
+  {{/inline}}
+{{/layouts/main}}

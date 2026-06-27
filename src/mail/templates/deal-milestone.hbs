@@ -1,0 +1,30 @@
+{{#> layouts/main}}
+  {{#*inline "body"}}
+  <div class="email-body">
+    <h1>{{milestone_title}}</h1>
+    <p>Hi {{recipient_name}},</p>
+    <p>{{milestone_body}}</p>
+
+    <div class="info-box">
+      <div class="info-row">
+        <span class="info-label">Property</span>
+        <span class="info-value">{{address}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Deal ID</span>
+        <span class="info-value">#{{deal_id}}</span>
+      </div>
+    </div>
+
+    <div class="btn-wrap">
+      <a href="{{appUrl}}/deals/{{deal_id}}" class="btn">View Deal Tracker</a>
+    </div>
+
+    <hr class="divider" />
+    <p class="muted">
+      You can use the deal chat to communicate directly with the counterparty
+      about any questions or next steps.
+    </p>
+  </div>
+  {{/inline}}
+{{/layouts/main}}

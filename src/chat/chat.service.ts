@@ -1,7 +1,7 @@
 import {
-  BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 
@@ -20,9 +20,12 @@ import {
 import { Deal, DealDocument } from '../deals/schemas/deal.schema';
 
 import { User, UserDocument, Role } from '../users/schemas/user.schema';
+import { NotificationsService } from 'src/notifications/notifications.service';
 
 @Injectable()
 export class ChatService {
+  private readonly logger = new Logger(ChatService.name);
+  
   constructor(
     @InjectModel(ChatRoom.name)
     private readonly roomModel: Model<ChatRoomDocument>,
@@ -35,6 +38,8 @@ export class ChatService {
 
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+
+    private readonly notificationsService: NotificationsService, 
   ) {}
 
   /**
@@ -153,12 +158,64 @@ export class ChatService {
     })) as ChatMessageDocument;
 
     room.last_message_at = new Date();
-
     await room.save();
+
+    // 🔔 Send in-app notification to the other party
+    this.sendChatNotification(room, senderId, content).catch((err) => {
+      this.logger.error(`Failed to send chat notification: ${err.message}`);
+    });
 
     return this.messageModel
       .findById(message._id)
       .populate('sender_id', 'full_name');
+  }
+
+  /**
+   * Send in-app notification for new chat message
+   */
+  private async sendChatNotification(
+    room: ChatRoomDocument,
+    senderId: string,
+    content: string,
+  ) {
+    // Determine recipient (the other party)
+    const recipientId =
+      room.seller_id.toString() === senderId
+        ? room.buyer_id.toString()
+        : room.seller_id.toString();
+
+    // Get sender and recipient info
+    const [sender, recipient, deal] = await Promise.all([
+      this.userModel.findById(senderId).select('full_name').lean(),
+      this.userModel.findById(recipientId).select('full_name email').lean(),
+      this.dealModel
+        .findById(room.deal_id)
+        .select('listing_id')
+        .populate({
+          path: 'listing_id',
+          select: 'address',
+        })
+        .lean(),
+    ]);
+
+    if (!sender || !recipient) return;
+
+    // Create message preview (truncate if too long)
+    const messagePreview =
+      content.length > 100 ? content.substring(0, 97) + '...' : content;
+
+    const address = (deal?.listing_id as any)?.address || 'property';
+
+    await this.notificationsService.notifyNewChatMessage({
+      recipient_id: recipientId,
+      recipient_email: recipient.email,
+      recipient_name: recipient.full_name,
+      sender_name: sender.full_name,
+      deal_id: room.deal_id.toString(),
+      room_id: room._id.toString(),
+      message_preview: messagePreview,
+      address: address,
+    });
   }
 
   /**

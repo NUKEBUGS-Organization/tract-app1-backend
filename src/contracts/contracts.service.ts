@@ -26,6 +26,7 @@ import { CloudinaryService } from '../common/services/cloudinary.service';
 import { generateContractPdf } from '../common/utils/pdf.generator';
 import { DocuSealService } from '../docuseal/docuseal.service';
 import { PaginationDto } from 'src/admin/dto/pagination.dto';
+import { NotificationsService } from 'src/notifications/notifications.service';
 
 @Injectable()
 export class ContractsService {
@@ -50,6 +51,7 @@ export class ContractsService {
     private readonly dealsService: DealsService,
     private readonly cloudinaryService: CloudinaryService,
     private readonly docuSealService: DocuSealService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async createContract(
@@ -180,6 +182,22 @@ export class ContractsService {
       this.logger.log(
         `DocuSeal submission ${submission.id} linked to contract ${contract._id}`,
       );
+
+      if (seller && buyer && listing) {
+        this.notificationsService
+          .notifyContractReady({
+            seller_id: seller._id.toString(),
+            seller_email: seller.email,
+            seller_name: seller.full_name,
+            buyer_id: buyer._id.toString(),
+            buyer_email: buyer.email,
+            buyer_name: buyer.full_name,
+            contract_id: contract._id.toString(),
+            listing_id: contract.property_id.toString(),
+            address: listing.address,
+          })
+          .catch(() => null);
+      }
     } catch (err) {
       // DocuSeal failure should not block contract creation — log and continue.
       // The sign-url endpoint will surface a clear error if signing is attempted
@@ -451,6 +469,7 @@ export class ContractsService {
 
       if (signedUrl) {
         contract.signed_pdf_url = signedUrl;
+        contract.pdf_url = signedUrl;
       }
 
       const auditUrl =
@@ -467,6 +486,28 @@ export class ContractsService {
       this.logger.log(`Contract ${contract._id} fully signed — creating deal`);
 
       await this.dealsService.createDealFromContract(contract._id.toString());
+
+      const [seller, buyer, listing] = await Promise.all([
+        this.userModel.findById(contract.seller_id).lean(),
+        this.userModel.findById(contract.buyer_id).lean(),
+        this.listingModel.findById(contract.property_id).lean(),
+      ]);
+
+      if (seller && buyer && listing) {
+        this.notificationsService
+          .notifyContractExecuted({
+            seller_id: seller._id.toString(),
+            seller_email: seller.email,
+            seller_name: seller.full_name,
+            buyer_id: buyer._id.toString(),
+            buyer_email: buyer.email,
+            buyer_name: buyer.full_name,
+            contract_id: contractId,
+            listing_id: contract.property_id.toString(),
+            address: listing.address,
+          })
+          .catch(() => null);
+      }
     } else {
       await contract.save();
     }

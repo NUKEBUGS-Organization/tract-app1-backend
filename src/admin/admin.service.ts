@@ -33,6 +33,7 @@ import {
 } from '../chat/schemas/chat-message.schema';
 import { PaginationDto } from './dto/pagination.dto';
 import { UpdateListingStatusDto } from './dto/update-listing-status.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class AdminService {
@@ -57,9 +58,9 @@ export class AdminService {
 
     @InjectModel(ChatMessage.name)
     private readonly messageModel: Model<ChatMessageDocument>,
-  ) {}
 
-  // ================= DASHBOARD =================
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   async dashboard() {
     const [users, listings, deals, contracts, pendingKyc, flaggedMessages] =
@@ -291,6 +292,19 @@ export class AdminService {
 
     await listing.save();
 
+    const seller = await this.userModel.findById(listing.seller_id).lean();
+    if (seller) {
+      this.notificationsService
+        .notifyListingLive({
+          seller_id: seller._id.toString(),
+          seller_email: seller.email,
+          seller_name: seller.full_name,
+          listing_id: listingId,
+          address: listing.address,
+        })
+        .catch(() => null);
+    }
+
     return {
       message: 'Listing approved successfully',
     };
@@ -312,6 +326,20 @@ export class AdminService {
     listing.reviewed_at = new Date();
 
     await listing.save();
+
+    const seller = await this.userModel.findById(listing.seller_id).lean();
+    if (seller) {
+      this.notificationsService
+        .notifyListingNeedsInfo({
+          seller_id: seller._id.toString(),
+          seller_email: seller.email,
+          seller_name: seller.full_name,
+          listing_id: listingId,
+          address: listing.address,
+          reason,
+        })
+        .catch(() => null);
+    }
 
     return {
       message: 'Listing rejected successfully',

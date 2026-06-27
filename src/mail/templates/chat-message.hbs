@@ -1,0 +1,47 @@
+{{#> layouts/main}}
+  {{#*inline "body"}}
+  <div class="email-body">
+    <h1>New message from {{sender_name}}</h1>
+    <p>Hi {{recipient_name}},</p>
+    <p>
+      You have a new message from <strong>{{sender_name}}</strong> regarding the
+      property below.
+    </p>
+
+    <div class="info-box">
+      <div class="info-row">
+        <span class="info-label">Property</span>
+        <span class="info-value">{{address}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">From</span>
+        <span class="info-value">{{sender_name}}</span>
+      </div>
+    </div>
+
+    <!-- Message preview bubble -->
+    <div style="
+      background-color: #eae5d8;
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin: 16px 0;
+      font-style: italic;
+      color: #333;
+      font-size: 14px;
+      border-left: 3px solid #174d34;
+    ">
+      "{{message_preview}}"
+    </div>
+
+    <div class="btn-wrap">
+      <a href="{{appUrl}}/deals/{{deal_id}}/chat" class="btn">Reply in Deal Chat</a>
+    </div>
+
+    <hr class="divider" />
+    <p class="muted">
+      All deal communications are logged and accessible via your deal tracker.
+      Please keep all transaction-related discussions within the TRACT platform.
+    </p>
+  </div>
+  {{/inline}}
+{{/layouts/main}}

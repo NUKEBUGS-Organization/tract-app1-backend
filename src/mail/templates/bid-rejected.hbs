@@ -1,0 +1,42 @@
+{{#> layouts/main}}
+  {{#*inline "body"}}
+  <div class="email-body">
+    <h1>Update on your offer</h1>
+    <p>Hi {{buyer_name}},</p>
+    <p>
+      Thank you for your interest. Unfortunately, the seller has chosen not to
+      move forward with your offer at this time.
+    </p>
+
+    <div class="info-box">
+      <div class="info-row">
+        <span class="info-label">Property</span>
+        <span class="info-value">{{address}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Your Offer</span>
+        <span class="info-value">${{formatNumber bid_price}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Offer Status</span>
+        <span class="info-value">Not Selected</span>
+      </div>
+    </div>
+
+    <p>
+      Don't be discouraged — new off-market properties are added regularly.
+      Browse the latest listings to find your next deal.
+    </p>
+
+    <div class="btn-wrap">
+      <a href="{{appUrl}}/listings" class="btn">Browse Listings</a>
+    </div>
+
+    <hr class="divider" />
+    <p class="muted">
+      Your account remains active and you can submit offers on other properties
+      at any time.
+    </p>
+  </div>
+  {{/inline}}
+{{/layouts/main}}
