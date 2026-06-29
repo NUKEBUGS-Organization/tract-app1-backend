@@ -5,32 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <title>TRACT</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <!--[if mso]>
   <noscript>
     <xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml>
   </noscript>
   <![endif]-->
   <style>
-    /* Reset */
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background-color: #f0ebe0;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
       font-size: 15px;
       line-height: 1.6;
       color: #1a1a1a;
       -webkit-text-size-adjust: 100%;
       -ms-text-size-adjust: 100%;
     }
-
-    /* Wrapper */
     .email-wrapper {
       width: 100%;
       background-color: #f0ebe0;
       padding: 40px 16px;
     }
-
-    /* Card */
     .email-card {
       max-width: 580px;
       margin: 0 auto;
@@ -39,15 +37,13 @@
       overflow: hidden;
       box-shadow: 0 2px 16px rgba(23, 77, 52, 0.10);
     }
-
-    /* Header */
     .email-header {
       background-color: #174d34;
       padding: 32px 40px 28px;
       text-align: center;
     }
     .email-header img {
-      height: 40px;
+      height: 70px;
       display: block;
       margin: 0 auto;
     }
@@ -57,8 +53,6 @@
       font-weight: 700;
       letter-spacing: 2px;
     }
-
-    /* Body */
     .email-body {
       padding: 36px 40px 32px;
     }
@@ -78,8 +72,6 @@
       color: #666;
       font-size: 13px;
     }
-
-    /* Info box */
     .info-box {
       background-color: #eae5d8;
       border-left: 4px solid #174d34;
@@ -88,17 +80,23 @@
       margin: 20px 0;
     }
     .info-box .info-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 4px 0;
+      display: block;
+      overflow: hidden;
+      padding: 6px 0;
       font-size: 14px;
       border-bottom: 1px solid #d5cfc2;
     }
     .info-box .info-row:last-child { border-bottom: none; }
-    .info-box .info-label { color: #555; font-weight: 500; }
-    .info-box .info-value { color: #174d34; font-weight: 700; }
-
-    /* CTA button */
+    .info-box .info-label {
+      color: #555;
+      font-weight: 500;
+      float: left;
+    }
+    .info-box .info-value {
+      color: #174d34;
+      font-weight: 700;
+      float: right;
+    }
     .btn-wrap { text-align: center; margin: 28px 0 8px; }
     .btn {
       display: inline-block;
@@ -112,15 +110,11 @@
       letter-spacing: 0.3px;
     }
     .btn:hover { background-color: #1e6445; }
-
-    /* Divider */
     .divider {
       border: none;
       border-top: 1px solid #ddd8cc;
       margin: 24px 0;
     }
-
-    /* Alert / warning box */
     .alert-box {
       background-color: #fff8e6;
       border: 1px solid #e8c84a;
@@ -130,8 +124,6 @@
       font-size: 14px;
       color: #7a5c00;
     }
-
-    /* Footer */
     .email-footer {
       background-color: #174d34;
       padding: 24px 40px;
@@ -147,8 +139,6 @@
       text-decoration: none;
     }
     .email-footer a:hover { text-decoration: underline; }
-
-    /* Mobile */
     @media only screen and (max-width: 600px) {
       .email-body  { padding: 24px 20px; }
       .email-header { padding: 24px 20px; }
@@ -158,27 +148,25 @@
   </style>
 </head>
 <body>
-  <div class="email-wrapper">
-    <div class="email-card">
+  <div class="email-wrapper" style="width: 100%; background-color: #f0ebe0; padding: 40px 16px; font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">
+    <div class="email-card" style="max-width: 580px; margin: 0 auto; background-color: #f7f2e8; border-radius: 12px; overflow: hidden;">
 
       <!-- Header -->
-      <div class="email-header">
-        <!-- Replace src with your hosted logo URL -->
-        <img src="{{logoUrl}}" alt="TRACT" onerror="this.style.display='none'" />
-        <!-- Fallback text shown if image fails -->
-        <div class="logo-fallback" style="display:none;">TRACT</div>
+      <div class="email-header" style="background-color: #174d34; padding: 32px 40px 28px; text-align: center;">
+        <img src="{{logoUrl}}" alt="TRACT" onerror="this.style.display='none'" style="height: 70px; display: block; margin: 0 auto;" />
+        <div class="logo-fallback" style="display:none; color: #f7f2e8; font-size: 26px; font-weight: 700; letter-spacing: 2px;">TRACT</div>
       </div>
 
       <!-- Body injected by each template -->
       {{{body}}}
 
       <!-- Footer -->
-      <div class="email-footer">
-        <p>© {{currentYear}} TRACT &amp; BUYTRACT. All rights reserved.</p>
-        <p>
-          <a href="{{appUrl}}/settings/notifications">Manage notifications</a>
+      <div class="email-footer" style="background-color: #174d34; padding: 24px 40px; text-align: center; font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">
+        <p style="color: #a8c4b5; font-size: 12px; margin-bottom: 4px;">© {{currentYear}} TRACT &amp; BUYTRACT. All rights reserved.</p>
+        <p style="color: #a8c4b5; font-size: 12px; margin-bottom: 4px;">
+          <a href="{{appUrl}}/settings/notifications" style="color: #c8dfd4; text-decoration: none;">Manage notifications</a>
           &nbsp;·&nbsp;
-          <a href="{{appUrl}}/help">Help Center</a>
+          <a href="{{appUrl}}/help" style="color: #c8dfd4; text-decoration: none;">Help Center</a>
         </p>
         <p style="margin-top:8px; font-size:11px; color:#7a9e8e;">
           You received this email because you have an active account on TRACT.<br/>
@@ -189,4 +177,3 @@
     </div>
   </div>
 </body>
-</html>

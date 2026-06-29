@@ -84,7 +84,7 @@ export class NotificationsService {
       recipient_id: params.seller_id,
       type: NotificationType.LISTING_LIVE,
       title: 'Your listing is now live!',
-      body: `${params.address} has been approved and is now visible to investors.`,
+      body: `${params.address} has been approved and is now visible to buyers.`,
       action_url: `/listings/${params.listing_id}`,
       metadata: { listing_id: params.listing_id },
       send_email: true,

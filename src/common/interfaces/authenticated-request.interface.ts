@@ -1,4 +1,3 @@
-import { Request } from '@nestjs/common';
 
 export interface JwtUser {
   _id: string;

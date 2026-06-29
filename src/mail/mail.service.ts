@@ -63,6 +63,7 @@ export class MailService {
 
   constructor() {
     this.resend = new Resend(process.env.RESEND_API_KEY);
+    this.registerPartials();
   }
 
   // ─── Auth emails ────────────────────────────────────────────────────────────
@@ -147,19 +148,31 @@ export class MailService {
     }
   }
 
-  private renderTemplate(
-    templateName: string,
-    context: Record<string, unknown>,
-  ): string {
-    const templatePath = path.join(
-      process.cwd(),
-      'src',
-      'mail',
-      'templates',
-      `${templateName}.hbs`,
-    );
-    const source = fs.readFileSync(templatePath, 'utf8');
-    const compiled = Handlebars.compile(source);
-    return compiled(context);
+  private registerPartials(): void {
+    const partialsDir = path.join(process.cwd(), 'src', 'mail', 'templates', 'layouts');
+    if (!fs.existsSync(partialsDir)) return;
+  
+    fs.readdirSync(partialsDir).forEach((file) => {
+      if (!file.endsWith('.hbs')) return;
+      const name = `layouts/${path.basename(file, '.hbs')}`;
+      const content = fs.readFileSync(path.join(partialsDir, file), 'utf8');
+      Handlebars.registerPartial(name, content);
+    });
+  
+    this.logger.log(`Registered ${fs.readdirSync(partialsDir).length} Handlebars partials`);
+  }
+
+  private renderTemplate(templateName: string, context: Record<string, unknown>): string {
+    const templatesDir = path.join(process.cwd(), 'src', 'mail', 'templates');
+  
+    // 1. Render the body template first
+    const bodyPath = path.join(templatesDir, `${templateName}.hbs`);
+    const bodySource = fs.readFileSync(bodyPath, 'utf8');
+    const bodyHtml = Handlebars.compile(bodySource)(context);
+  
+    // 2. Render the layout with body injected
+    const layoutPath = path.join(templatesDir, 'layouts','main.hbs');
+    const layoutSource = fs.readFileSync(layoutPath, 'utf8');
+    return Handlebars.compile(layoutSource)({ ...context, body: bodyHtml });
   }
 }

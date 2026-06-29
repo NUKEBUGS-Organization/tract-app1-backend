@@ -22,9 +22,10 @@ import {
 } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import type { AuthenticatedRequest } from 'src/common/interfaces/authenticated-request.interface';
 
 @ApiTags('Notifications')
-@ApiBearerAuth()
+@ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard)
 @Controller('notifications')
 export class NotificationsController {
@@ -69,12 +70,12 @@ export class NotificationsController {
   })
   @ApiUnauthorizedResponse({ description: 'User is not authenticated' })
   getAll(
-    @Request() req,
+    @Request() req: AuthenticatedRequest,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     return this.notificationsService.getUserNotifications(
-      req.user.sub,
+      req.user._id,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
     );
@@ -97,8 +98,8 @@ export class NotificationsController {
     },
   })
   @ApiUnauthorizedResponse({ description: 'User is not authenticated' })
-  unreadCount(@Request() req) {
-    return this.notificationsService.getUnreadCount(req.user.sub);
+  unreadCount(@Request() req : AuthenticatedRequest) {
+    return this.notificationsService.getUnreadCount(req.user._id);
   }
 
   /** PATCH /notifications/:id/read */
@@ -122,8 +123,8 @@ export class NotificationsController {
   })
   @ApiNotFoundResponse({ description: 'Notification not found' })
   @ApiUnauthorizedResponse({ description: 'User is not authenticated' })
-  markRead(@Param('id') id: string, @Request() req) {
-    return this.notificationsService.markAsRead(id, req.user.sub);
+  markRead(@Param('id') id: string, @Request() req : AuthenticatedRequest) {
+    return this.notificationsService.markAsRead(id, req.user._id);
   }
 
   /** PATCH /notifications/read-all */
@@ -143,7 +144,7 @@ export class NotificationsController {
   })
   @ApiUnauthorizedResponse({ description: 'User is not authenticated' })
   markAllRead(@Request() req) {
-    return this.notificationsService.markAllAsRead(req.user.sub);
+    return this.notificationsService.markAllAsRead(req.user._id);
   }
 
   /** DELETE /notifications/:id */
@@ -174,6 +175,6 @@ export class NotificationsController {
   @ApiNotFoundResponse({ description: 'Notification not found' })
   @ApiUnauthorizedResponse({ description: 'User is not authenticated' })
   delete(@Param('id') id: string, @Request() req) {
-    return this.notificationsService.deleteNotification(id, req.user.sub);
+    return this.notificationsService.deleteNotification(id, req.user._id);
   }
 }

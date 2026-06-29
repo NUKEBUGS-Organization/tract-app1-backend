@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { InjectModel } from '@nestjs/mongoose';
 
@@ -274,44 +270,56 @@ export class AdminService {
   }
 
   async approveListing(listingId: string, adminId: string) {
-    const listing = await this.listingModel.findById(listingId);
+    try {
+      const listing = await this.listingModel.findById(listingId.trim());
 
-    if (!listing) {
-      throw new NotFoundException('Listing not found');
+      if (listing?.status === ListingStatus.LIVE) {
+        throw new ConflictException('Listing is already live');
+      }
+
+      if (!listing) {
+        throw new NotFoundException('Listing not found');
+      }
+
+      listing.status = ListingStatus.LIVE;
+
+      listing.live_at = new Date();
+
+      listing.reviewed_by = adminId as any;
+
+      listing.reviewed_at = new Date();
+
+      listing.rejection_reason = '';
+
+      await listing.save();
+
+      const seller = await this.userModel.findById(listing.seller_id).lean();
+      if (seller) {
+        this.notificationsService
+          .notifyListingLive({
+            seller_id: seller._id.toString(),
+            seller_email: seller.email,
+            seller_name: seller.full_name,
+            listing_id: listingId,
+            address: listing.address,
+          })
+          .catch((err) => console.log(err));
+      }
+      return {
+        message: 'Listing approved successfully',
+      };
+    } catch (error) {
+      console.log(error);
+      return { message: error };
     }
-
-    listing.status = ListingStatus.LIVE;
-
-    listing.live_at = new Date();
-
-    listing.reviewed_by = adminId as any;
-
-    listing.reviewed_at = new Date();
-
-    listing.rejection_reason = '';
-
-    await listing.save();
-
-    const seller = await this.userModel.findById(listing.seller_id).lean();
-    if (seller) {
-      this.notificationsService
-        .notifyListingLive({
-          seller_id: seller._id.toString(),
-          seller_email: seller.email,
-          seller_name: seller.full_name,
-          listing_id: listingId,
-          address: listing.address,
-        })
-        .catch(() => null);
-    }
-
-    return {
-      message: 'Listing approved successfully',
-    };
   }
 
   async rejectListing(listingId: string, reason: string, adminId: string) {
     const listing = await this.listingModel.findById(listingId);
+
+    if (listing?.status === ListingStatus.REJECTED) {
+      throw new ConflictException('Listing is already rejected');
+    }
 
     if (!listing) {
       throw new NotFoundException('Listing not found');
@@ -355,6 +363,10 @@ export class AdminService {
 
     if (!listing) {
       throw new NotFoundException('Listing not found');
+    }
+
+    if (listing?.status === dto.status) {
+      throw new ConflictException(`Listing is already ${dto.status}`);
     }
 
     listing.status = dto.status;
