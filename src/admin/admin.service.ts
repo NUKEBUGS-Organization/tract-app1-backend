@@ -303,13 +303,12 @@ export class AdminService {
             listing_id: listingId,
             address: listing.address,
           })
-          .catch((err) => console.log(err));
+          .catch(() => null);
       }
       return {
         message: 'Listing approved successfully',
       };
     } catch (error) {
-      console.log(error);
       return { message: error };
     }
   }

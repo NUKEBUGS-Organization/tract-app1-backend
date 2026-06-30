@@ -92,11 +92,11 @@ export class ListingsService {
       }
 
       // Only draft and withdrawn listings can be edited
-      const editableStatuses = [ListingStatus.DRAFT, ListingStatus.WITHDRAWN];
+      const editableStatuses = [ListingStatus.DRAFT, ListingStatus.WITHDRAWN, ListingStatus.REJECTED];
 
       if (!editableStatuses.includes(listing.status)) {
         throw new BadRequestException(
-          `Cannot update listing in "${listing.status}" status. Only draft or withdrawn listings can be edited.`,
+          `Cannot update listing in "${listing.status}" status. Only draft, withdrawn and Rejected listings can be edited.`,
         );
       }
 
