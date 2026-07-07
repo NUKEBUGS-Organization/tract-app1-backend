@@ -1,0 +1,41 @@
+  <div class="email-body">
+    <h1>Action required on your listing</h1>
+    <p>Hi {{seller_name}},</p>
+    <p>
+      Our team has reviewed your property submission and requires some additional
+      information before it can be approved and go live.
+    </p>
+
+    <div class="info-box">
+      <div class="info-row">
+        <span class="info-label">Property</span>
+        <span class="info-value">{{address}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Status</span>
+        <span class="info-value">Pending Info</span>
+      </div>
+    </div>
+
+    {{#if reason}}
+    <div class="alert-box">
+      <strong>What's needed:</strong><br/>
+      {{reason}}
+    </div>
+    {{else}}
+    <p>
+      Please log in to your dashboard and update your listing with the requested
+      information so our team can complete the review.
+    </p>
+    {{/if}}
+
+    <div class="btn-wrap">
+      <a href="{{appUrl}}/listings/{{listing_id}}/edit" class="btn">Update Listing</a>
+    </div>
+
+    <hr class="divider" />
+    <p class="muted">
+      If you believe this is an error or need assistance, please contact our support
+      team via the Help Center.
+    </p>
+  </div>

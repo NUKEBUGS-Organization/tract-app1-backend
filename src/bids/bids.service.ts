@@ -21,6 +21,8 @@ import { User, UserDocument, Role } from '../users/schemas/user.schema';
 
 import { CreateBidDto } from './dto/create-bid.dto';
 
+import { NotificationsService } from '../notifications/notifications.service';
+
 @Injectable()
 export class BidsService {
   constructor(
@@ -35,6 +37,8 @@ export class BidsService {
 
     @InjectConnection()
     private readonly connection: Connection,
+
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async createBid(listingId: string, bidderId: string, dto: CreateBidDto) {
@@ -97,6 +101,9 @@ export class BidsService {
 
     const session = await this.connection.startSession();
 
+    let createdBid: Bid;
+    let newBidCount: number;
+
     try {
       session.startTransaction();
 
@@ -116,24 +123,57 @@ export class BidsService {
       );
 
       listing.bid_count += 1;
+      newBidCount = listing.bid_count;
 
       if (listing.bid_count >= 10) {
         listing.status = ListingStatus.PAUSED;
       }
 
-      await listing.save({
-        session,
-      });
+      await listing.save({ session });
 
       await session.commitTransaction();
 
-      return bid[0].toObject();
+      createdBid = bid[0].toObject();
     } catch (error) {
       await session.abortTransaction();
       throw error;
     } finally {
       session.endSession();
     }
+
+    // ── Post-commit notifications (non-blocking) ──────────────────────────
+    const seller = await this.userModel.findById(listing.seller_id).lean();
+    if (seller) {
+      if (newBidCount >= 10) {
+        // Cap reached — send special notification instead of standard bid-received
+        this.notificationsService
+          .notifyBidCapReached({
+            seller_id: seller._id.toString(),
+            seller_email: seller.email,
+            seller_name: seller.full_name,
+            listing_id: listingId,
+            address: listing.address,
+          })
+          .catch(() => null);
+      } else {
+        // Normal offer received
+        this.notificationsService
+          .notifyBidReceived({
+            seller_id: seller._id.toString(),
+            seller_email: seller.email,
+            seller_name: seller.full_name,
+            listing_id: listingId,
+            address: listing.address,
+            bid_id: (createdBid as any)._id.toString(),
+            bid_price: dto.bid_price,
+            bidder_name: bidder.full_name,
+            bid_count: newBidCount,
+          })
+          .catch(() => null);
+      }
+    }
+
+    return createdBid;
   }
 
   async getListingBids(listingId: string, sellerId: string) {
@@ -185,6 +225,8 @@ export class BidsService {
   ) {
     const session = await this.connection.startSession();
 
+    let selectedBid: BidDocument | null = null;
+
     try {
       session.startTransaction();
 
@@ -210,39 +252,49 @@ export class BidsService {
 
       if (selection === 1) {
         bid.status = BidStatus.SELECTED;
-
-        await bid.save({
-          session,
-        });
-
+        await bid.save({ session });
         listing.status = ListingStatus.UNDER_CONTRACT;
-
-        await listing.save({
-          session,
-        });
+        await listing.save({ session });
+        selectedBid = bid;
       }
 
       if (selection === 2) {
         bid.status = BidStatus.BACKUP;
-
         bid.backup_position = 1;
-
-        await bid.save({
-          session,
-        });
+        await bid.save({ session });
       }
 
       if (selection === 3) {
         bid.status = BidStatus.BACKUP;
-
         bid.backup_position = 2;
-
-        await bid.save({
-          session,
-        });
+        await bid.save({ session });
       }
 
       await session.commitTransaction();
+
+      // ── Post-commit: notify selected buyer ──────────────────────────────
+      if (selection === 1 && selectedBid) {
+        const [buyer, seller, listingDoc] = await Promise.all([
+          this.userModel.findById(selectedBid.bidder_id).lean(),
+          this.userModel.findById(listing.seller_id).lean(),
+          this.listingModel.findById(listingId).lean(),
+        ]);
+
+        if (buyer && seller && listingDoc) {
+          this.notificationsService
+            .notifyBidSelected({
+              buyer_id: buyer._id.toString(),
+              buyer_email: buyer.email,
+              buyer_name: buyer.full_name,
+              seller_name: seller.full_name,
+              listing_id: listingId,
+              bid_id: bidId,
+              address: listingDoc.address,
+              bid_price: selectedBid.bid_price,
+            })
+            .catch(() => null);
+        }
+      }
 
       return {
         success: true,
@@ -274,8 +326,23 @@ export class BidsService {
     }
 
     bid.status = BidStatus.REJECTED;
-
     await bid.save();
+
+    // ── Notify buyer their bid was rejected ─────────────────────────────
+    const buyer = await this.userModel.findById(bid.bidder_id).lean();
+    if (buyer) {
+      this.notificationsService
+        .notifyBidRejected({
+          buyer_id: buyer._id.toString(),
+          buyer_email: buyer.email,
+          buyer_name: buyer.full_name,
+          listing_id: listingId,
+          bid_id: bidId,
+          address: listing.address,
+          bid_price: bid.bid_price,
+        })
+        .catch(() => null);
+    }
 
     return bid;
   }
@@ -307,9 +374,7 @@ export class BidsService {
     }
 
     bid.deleted_at = new Date();
-
     bid.status = BidStatus.DELETED;
-
     await bid.save();
 
     return {

@@ -1,0 +1,50 @@
+  <div class="email-body">
+    <h1>🎉 Deal Closed — Congratulations!</h1>
+    <p>Hi {{recipient_name}},</p>
+    <p>
+      The transaction for the property below has officially closed.
+      {{#if is_seller}}
+        Your property has been successfully sold and the closing receipt is
+        available in your document vault.
+      {{else}}
+        The acquisition is complete. Closing documents are available in your
+        document vault.
+      {{/if}}
+    </p>
+
+    <div class="info-box">
+      <div class="info-row">
+        <span class="info-label">Property</span>
+        <span class="info-value">{{address}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Closing Price</span>
+        <span class="info-value">${{formatNumber final_price}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Your Role</span>
+        <span class="info-value">{{#if is_seller}}Seller{{else}}Buyer{{/if}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Status</span>
+        <span class="info-value">Closed</span>
+      </div>
+    </div>
+
+    {{#if is_seller}}
+    <div class="alert-box">
+      💳 <strong>Marketing fee processing:</strong> Your success-based marketing fee
+      is now being processed. You'll receive a separate confirmation once it has been
+      finalized.
+    </div>
+    {{/if}}
+
+    <div class="btn-wrap">
+      <a href="{{appUrl}}/deals/{{deal_id}}" class="btn">View Closing Summary</a>
+    </div>
+
+    <hr class="divider" />
+    <p class="muted">
+      Thank you for using TRACT. We hope to work with you on your next deal.
+    </p>
+  </div>

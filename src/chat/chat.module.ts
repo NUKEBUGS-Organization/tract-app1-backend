@@ -13,6 +13,7 @@ import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
 import { ChatController } from './chat.controller';
 import { DealsModule } from 'src/deals/deals.module';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { DealsModule } from 'src/deals/deals.module';
         schema: UserSchema,
       },
     ]),
+    NotificationsModule,
     forwardRef(() => DealsModule)
   ],
   controllers: [ChatController],

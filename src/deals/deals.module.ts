@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { Deal, DealSchema } from './schemas/deal.schema';
+import { Bid, BidSchema } from '../bids/schemas/bid.schema';
 
 import { Contract, ContractSchema } from '../contracts/schemas/contract.schema';
 
@@ -13,6 +14,7 @@ import { ChatRoom, ChatRoomSchema } from 'src/chat/schemas/chat-room.schema';
 import { DealsService } from './deals.service';
 import { DealsController } from './deals.controller';
 import { ChatModule } from '../chat/chat.module';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -34,7 +36,9 @@ import { ChatModule } from '../chat/chat.module';
         schema: UserSchema,
       },
       { name: ChatRoom.name, schema: ChatRoomSchema },
+      { name: Bid.name, schema: BidSchema },
     ]),
+    NotificationsModule,
     forwardRef(() => ChatModule)
   ],
   controllers: [DealsController],

@@ -1,0 +1,38 @@
+  <div class="email-body">
+    <h1>Your offer was accepted!</h1>
+    <p>Hi {{buyer_name}},</p>
+    <p>
+      Congratulations — the seller has selected your offer. The deal is now moving
+      forward to the contract stage.
+    </p>
+
+    <div class="info-box">
+      <div class="info-row">
+        <span class="info-label">Property</span>
+        <span class="info-value">{{address}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Accepted Offer</span>
+        <span class="info-value">${{formatNumber bid_price}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Seller</span>
+        <span class="info-value">{{seller_name}}</span>
+      </div>
+    </div>
+
+    <p>
+      A purchase contract will be generated shortly. You'll receive another
+      notification when it's ready for your signature.
+    </p>
+
+    <div class="btn-wrap">
+      <a href="{{appUrl}}/listings/{{listing_id}}" class="btn">View Property Details</a>
+    </div>
+
+    <hr class="divider" />
+    <p class="muted">
+      Please ensure your proof of funds and any required documents are up to date
+      in your account before the contract is issued.
+    </p>
+  </div>

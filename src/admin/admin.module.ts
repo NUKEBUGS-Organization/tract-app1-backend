@@ -14,6 +14,7 @@ import {
   ChatMessage,
   ChatMessageSchema,
 } from '../chat/schemas/chat-message.schema';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import {
       { name: ChatRoom.name, schema: ChatRoomSchema },
       { name: ChatMessage.name, schema: ChatMessageSchema },
     ]),
+    NotificationsModule
   ],
   controllers: [AdminController],
   providers: [AdminService],

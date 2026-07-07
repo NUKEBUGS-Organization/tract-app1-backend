@@ -1,0 +1,43 @@
+  <div class="email-body">
+    <h1>Contract fully executed</h1>
+    <p>Hi {{recipient_name}},</p>
+    <p>
+      Both parties have signed the purchase contract. The deal is now officially
+      <strong>active</strong> and you can access the deal tracker to monitor
+      progress toward closing.
+    </p>
+
+    <div class="info-box">
+      <div class="info-row">
+        <span class="info-label">Property</span>
+        <span class="info-value">{{address}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Counterparty</span>
+        <span class="info-value">{{counterparty_name}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Contract ID</span>
+        <span class="info-value">#{{contract_id}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Status</span>
+        <span class="info-value">Fully Executed</span>
+      </div>
+    </div>
+
+    <p>
+      A copy of the executed contract is available in your document vault.
+      Both parties now have access to the deal chat for direct communication.
+    </p>
+
+    <div class="btn-wrap">
+      <a href="{{appUrl}}/contracts/{{contract_id}}" class="btn">View Executed Contract</a>
+    </div>
+
+    <hr class="divider" />
+    <p class="muted">
+      Keep an eye on your deal tracker for upcoming milestones, deadlines,
+      and required actions.
+    </p>
+  </div>

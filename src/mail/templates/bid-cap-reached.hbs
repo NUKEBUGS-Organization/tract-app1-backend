@@ -1,0 +1,39 @@
+  <div class="email-body">
+    <h1>Maximum offers reached — review now</h1>
+    <p>Hi {{seller_name}},</p>
+    <p>
+      Your property has received <strong>10 offers</strong> — the maximum allowed on TRACT.
+      The listing has been <strong>automatically paused</strong> and is no longer
+      accepting new offers.
+    </p>
+
+    <div class="info-box">
+      <div class="info-row">
+        <span class="info-label">Property</span>
+        <span class="info-value">{{address}}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Total Offers</span>
+        <span class="info-value">10 / 10</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Listing Status</span>
+        <span class="info-value">Paused</span>
+      </div>
+    </div>
+
+    <p>
+      It's time to review all offers and select your preferred buyer.
+      You can also designate up to two backup positions in case your primary deal falls through.
+    </p>
+
+    <div class="btn-wrap">
+      <a href="{{appUrl}}/listings/{{listing_id}}/bids" class="btn">Review & Select Offers</a>
+    </div>
+
+    <hr class="divider" />
+    <p class="muted">
+      Selecting an offer will move the listing to "Under Contract" status and initiate
+      the contract generation process.
+    </p>
+  </div>
