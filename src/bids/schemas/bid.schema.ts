@@ -23,6 +23,22 @@ export enum DueDiligencePeriod {
   FIFTEEN = 15,
 }
 
+export enum ClosingTimelineDays {
+  THIRTY = 30,
+  FORTY_FIVE = 45,
+  SIXTY = 60,
+}
+
+export enum AgencyRole {
+  LISTING_AGENT = 'Listing Agent',
+  TRANSACTION_COORDINATOR = 'Transaction Coordinator',
+}
+
+export enum PaymentSource {
+  SELLER_PAYS = 'Seller Pays Commission',
+  BUYER_PAYS = 'Buyer Pays Commission',
+}
+
 @Schema({ timestamps: true })
 export class Bid {
   @Prop({ type: Types.ObjectId, ref: 'Listing', required: true })
@@ -34,11 +50,29 @@ export class Bid {
   @Prop({ required: true })
   bid_price: number;
 
-  @Prop({ type: Number, enum: InspectionPeriod, required: true })
+  // Wholesaler-only
+  @Prop({ type: Number, enum: InspectionPeriod, default: null })
   inspection_period: InspectionPeriod;
 
-  @Prop({ type: Number, enum: DueDiligencePeriod, required: true })
+  // Wholesaler-only
+  @Prop({ type: Number, enum: DueDiligencePeriod, default: null })
   due_diligence_period: DueDiligencePeriod;
+
+  // Realtor-only, 2-6%
+  @Prop({ type: Number, default: null })
+  commission_percentage: number;
+
+  // Realtor-only
+  @Prop({ type: Number, enum: ClosingTimelineDays, default: null })
+  closing_timeline_days: ClosingTimelineDays;
+
+  // Realtor-only
+  @Prop({ type: String, enum: AgencyRole, default: null })
+  agency_role: AgencyRole;
+
+  // Realtor-only
+  @Prop({ type: String, enum: PaymentSource, default: null })
+  payment_source: PaymentSource;
 
   @Prop({ type: String, enum: BidStatus, default: BidStatus.ACTIVE })
   status: BidStatus;
@@ -49,9 +83,11 @@ export class Bid {
   @Prop({ default: null })
   net_to_seller: number; // computed: bid_price - commission (if realtor)
 
+  // Wholesaler-only, optional LOI document URL
   @Prop({ default: null })
-  loi_url: string; // optional LOI document URL
+  loi_url: string;
 
+  // Wholesaler-only
   @Prop({ default: null })
   proof_of_funds_url: string;
 

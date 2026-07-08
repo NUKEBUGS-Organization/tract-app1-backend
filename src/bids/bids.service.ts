@@ -9,7 +9,12 @@ import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 
 import { Connection, Model, Types } from 'mongoose';
 
-import { Bid, BidDocument, BidStatus } from './schemas/bid.schema';
+import {
+  Bid,
+  BidDocument,
+  BidStatus,
+  PaymentSource,
+} from './schemas/bid.schema';
 
 import {
   Listing,
@@ -40,6 +45,48 @@ export class BidsService {
 
     private readonly notificationsService: NotificationsService,
   ) {}
+
+  private buildRoleFields(role: Role, dto: CreateBidDto) {
+    if (role === Role.REALTOR) {
+      if (
+        dto.commission_percentage === undefined ||
+        dto.closing_timeline_days === undefined ||
+        dto.agency_role === undefined ||
+        dto.payment_source === undefined
+      ) {
+        throw new BadRequestException(
+          'commission_percentage, closing_timeline_days, agency_role and payment_source are required for realtor bids',
+        );
+      }
+
+      return {
+        commission_percentage: dto.commission_percentage,
+        closing_timeline_days: dto.closing_timeline_days,
+        agency_role: dto.agency_role,
+        payment_source: dto.payment_source,
+      };
+    }
+
+    if (role === Role.WHOLESALER) {
+      if (
+        dto.inspection_period === undefined ||
+        dto.due_diligence_period === undefined
+      ) {
+        throw new BadRequestException(
+          'inspection_period and due_diligence_period are required for wholesaler bids',
+        );
+      }
+
+      return {
+        inspection_period: dto.inspection_period,
+        due_diligence_period: dto.due_diligence_period,
+        loi_url: dto.loi_url,
+        proof_of_funds_url: dto.proof_of_funds_url,
+      };
+    }
+
+    throw new BadRequestException('Role is not permitted to submit bids');
+  }
 
   async createBid(listingId: string, bidderId: string, dto: CreateBidDto) {
     const listing = await this.listingModel.findById(listingId);
@@ -92,11 +139,17 @@ export class BidsService {
       }
     }
 
+    const roleFields = this.buildRoleFields(bidder.role, dto);
+
     let netToSeller = dto.bid_price;
 
-    if (bidder.role === Role.REALTOR && listing.realtor_commission) {
+    if (
+      bidder.role === Role.REALTOR &&
+      dto.payment_source === PaymentSource.SELLER_PAYS &&
+      dto.commission_percentage
+    ) {
       netToSeller =
-        dto.bid_price - dto.bid_price * (listing.realtor_commission / 100);
+        dto.bid_price - dto.bid_price * (dto.commission_percentage / 100);
     }
 
     const session = await this.connection.startSession();
@@ -113,8 +166,7 @@ export class BidsService {
             property_id: listing._id,
             bidder_id: bidder._id,
             bid_price: dto.bid_price,
-            inspection_period: dto.inspection_period,
-            due_diligence_period: dto.due_diligence_period,
+            ...roleFields,
             net_to_seller: netToSeller,
             submitted_at: new Date(),
           },
@@ -194,7 +246,8 @@ export class BidsService {
       })
       .populate({
         path: 'bidder_id',
-        select: 'full_name role reliability_score professional_score',
+        select:
+          'full_name role reliability_score professional_score deal_count',
       })
       .sort({
         net_to_seller: -1,
@@ -206,7 +259,7 @@ export class BidsService {
       .findById(bidId)
       .populate(
         'bidder_id',
-        'full_name email role reliability_score professional_score',
+        'full_name email role reliability_score professional_score deal_count',
       )
       .populate('property_id');
 
