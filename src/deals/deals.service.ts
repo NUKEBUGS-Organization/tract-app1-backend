@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -25,9 +26,14 @@ import { UploadMarketLaunchProofDto } from './dto/upload-market-launch-proof.dto
 import { ChatRoom, ChatRoomDocument } from '../chat/schemas/chat-room.schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/schemas/notification.schema';
+import { ScoreService } from '../score/score.service';
+import { ScoreEventType } from '../score/schemas/score-event.schema';
+import { KillSwitchReason } from './dto/trigger-kill-switch.dto';
 
 @Injectable()
 export class DealsService {
+  private readonly logger = new Logger(DealsService.name);
+
   constructor(
     @InjectModel(Deal.name)
     private readonly dealModel: Model<DealDocument>,
@@ -49,6 +55,7 @@ export class DealsService {
 
     private readonly chatService: ChatService,
     private readonly notificationsService: NotificationsService,
+    private readonly scoreService: ScoreService,
   ) {}
 
   // Helper method to get deal participants
@@ -273,6 +280,33 @@ export class DealsService {
       throw new ForbiddenException();
     }
 
+    // Wholesaler backs out of their own active deal before proceeding to
+    // closing — treated as an inspection cancellation (§2, -20), applied
+    // automatically since the buyer's own action is the trigger.
+    if (
+      isBuyer &&
+      user?.role === Role.WHOLESALER &&
+      deal.status === DealStatus.ACTIVE &&
+      !deal.proceed_to_closing_at
+    ) {
+      try {
+        await this.scoreService.applyPenalty(
+          {
+            user_id: userId,
+            event_type: ScoreEventType.INSPECTION_CANCELLATION,
+            deal_id: deal._id.toString(),
+            note: 'Wholesaler cancelled the deal before proceeding to closing',
+          },
+          'system',
+        );
+      } catch (err) {
+        this.logger.error(
+          `Failed to apply inspection-cancellation penalty for deal ${dealId}: ${err.message}`,
+          err.stack,
+        );
+      }
+    }
+
     deal.status = DealStatus.CANCELLED;
     await deal.save();
 
@@ -379,7 +413,12 @@ export class DealsService {
     };
   }
 
-  async triggerKillSwitch(dealId: string) {
+  async triggerKillSwitch(
+    dealId: string,
+    reason: KillSwitchReason,
+    triggeredBy: string,
+    note?: string,
+  ) {
     const deal = await this.dealModel.findById(dealId);
 
     if (!deal) {
@@ -389,6 +428,26 @@ export class DealsService {
     deal.status = DealStatus.BACKUP_ACTIVATED;
     deal.kill_switch_triggered_at = new Date();
     await deal.save();
+
+    // Apply the matching score penalty to the buyer partner — TRACT App 1
+    // Score Rules §2/§5: missed marketing/market-launch proof or failure to
+    // proceed to closing all result in the deal being pulled and a penalty.
+    try {
+      await this.scoreService.applyPenalty(
+        {
+          user_id: deal.buyer_id.toString(),
+          event_type: reason,
+          deal_id: deal._id.toString(),
+          note,
+        },
+        triggeredBy,
+      );
+    } catch (err) {
+      this.logger.error(
+        `Failed to apply kill-switch score penalty for deal ${dealId}: ${err.message}`,
+        err.stack,
+      );
+    }
 
     // 🔔 Notify: Backup activated
     const { seller, buyer, listing } = await this.getDealParticipants(deal);
@@ -479,9 +538,17 @@ export class DealsService {
     const now = new Date();
     let marketingDeadline: Date | undefined = undefined;
     let marketLaunchDeadline: Date | undefined = undefined;
+    let inspectionDeadline: Date | undefined = undefined;
 
     if (buyer?.role === Role.WHOLESALER) {
       marketingDeadline = new Date(now.getTime() + 72 * 60 * 60 * 1000); // 72 hours
+
+      const bid = await this.bidModel.findById(contract.bid_id).lean();
+      if (bid) {
+        inspectionDeadline = new Date(
+          now.getTime() + bid.inspection_period * 24 * 60 * 60 * 1000,
+        );
+      }
     }
 
     if (buyer?.role === Role.REALTOR) {
@@ -495,6 +562,7 @@ export class DealsService {
       buyer_id: contract.buyer_id,
       marketing_deadline: marketingDeadline,
       market_launch_deadline: marketLaunchDeadline,
+      inspection_deadline: inspectionDeadline,
       chat_unlocked: true,
       status: DealStatus.ACTIVE,
     });

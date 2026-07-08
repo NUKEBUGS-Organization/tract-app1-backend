@@ -16,6 +16,14 @@ export enum KycStatus {
   REJECTED = 'rejected',
 }
 
+// Score-driven access restriction — see TRACT App 1 Score Rules §3
+export enum RestrictionStatus {
+  NORMAL = 'normal',
+  DELAYED_ACCESS = 'delayed_access',
+  BANNED = 'banned',
+  REINSTATEMENT_REQUIRED = 'reinstatement_required',
+}
+
 @Schema({ timestamps: true }) // auto adds createdAt, updatedAt
 export class User {
   @Prop({ required: true, unique: true })
@@ -53,6 +61,17 @@ export class User {
 
   @Prop({ default: 0 })
   deal_count: number;
+
+  @Prop({
+    type: String,
+    enum: RestrictionStatus,
+    default: RestrictionStatus.NORMAL,
+  })
+  restriction_status: RestrictionStatus;
+
+  // Set when restriction_status is DELAYED_ACCESS (score < 50 → 48h delayed access)
+  @Prop({ type: Date, default: null })
+  restricted_until: Date | null;
 
   @Prop({ default: false })
   is_banned: boolean;
