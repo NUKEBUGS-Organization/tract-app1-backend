@@ -26,6 +26,7 @@ import { ChatModule } from './chat/chat.module';
 import { AdminModule } from './admin/admin.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ScoreModule } from './score/score.module';
+import { PropertyDataModule } from './property-data/property-data.module';
 
 @Module({
   imports: [
@@ -59,7 +60,8 @@ import { ScoreModule } from './score/score.module';
     MailModule,
     SmsModule,
     NotificationsModule,
-    ScoreModule
+    ScoreModule,
+    PropertyDataModule
   ],
   controllers: [AppController],
   providers: [AppService, {
