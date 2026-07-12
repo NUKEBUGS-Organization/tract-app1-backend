@@ -27,6 +27,7 @@ import { User, UserDocument, Role } from '../users/schemas/user.schema';
 import { CreateBidDto } from './dto/create-bid.dto';
 
 import { NotificationsService } from '../notifications/notifications.service';
+import { VerificationsService } from '../verifications/verifications.service';
 
 @Injectable()
 export class BidsService {
@@ -44,6 +45,8 @@ export class BidsService {
     private readonly connection: Connection,
 
     private readonly notificationsService: NotificationsService,
+
+    private readonly verificationsService: VerificationsService,
   ) {}
 
   private buildRoleFields(role: Role, dto: CreateBidDto) {
@@ -112,6 +115,8 @@ export class BidsService {
     if (bidder.is_banned) {
       throw new ForbiddenException('Account is banned');
     }
+
+    await this.verificationsService.assertCanBid(bidderId, bidder.role);
 
     if (listing.bid_count >= 10) {
       throw new BadRequestException('Maximum bid limit reached');
@@ -416,22 +421,53 @@ export class BidsService {
   }
 
   async deleteBid(bidId: string, userId: string) {
-    const bid = await this.bidModel.findById(bidId);
+    const session = await this.connection.startSession();
 
-    if (!bid) {
-      throw new NotFoundException('Bid not found');
+    try {
+      session.startTransaction();
+
+      const bid = await this.bidModel.findById(bidId).session(session);
+
+      if (!bid) {
+        throw new NotFoundException('Bid not found');
+      }
+
+      if (bid.bidder_id.toString() !== userId) {
+        throw new ForbiddenException();
+      }
+
+      const alreadyDeleted = bid.status === BidStatus.DELETED;
+
+      bid.deleted_at = new Date();
+      bid.status = BidStatus.DELETED;
+      await bid.save({ session });
+
+      if (!alreadyDeleted) {
+        const listing = await this.listingModel
+          .findById(bid.property_id)
+          .session(session);
+
+        if (listing && listing.bid_count > 0) {
+          listing.bid_count -= 1;
+
+          if (listing.status === ListingStatus.PAUSED) {
+            listing.status = ListingStatus.LIVE;
+          }
+
+          await listing.save({ session });
+        }
+      }
+
+      await session.commitTransaction();
+
+      return {
+        success: true,
+      };
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
     }
-
-    if (bid.bidder_id.toString() !== userId) {
-      throw new ForbiddenException();
-    }
-
-    bid.deleted_at = new Date();
-    bid.status = BidStatus.DELETED;
-    await bid.save();
-
-    return {
-      success: true,
-    };
   }
 }

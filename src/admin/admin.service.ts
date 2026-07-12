@@ -1,4 +1,8 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
 import { InjectModel } from '@nestjs/mongoose';
 
@@ -27,6 +31,12 @@ import {
   ChatMessage,
   ChatMessageDocument,
 } from '../chat/schemas/chat-message.schema';
+import {
+  Verification,
+  VerificationDocument,
+  VerificationStatus,
+  VerificationType,
+} from '../verifications/schemas/verification.schema';
 import { PaginationDto } from './dto/pagination.dto';
 import { UpdateListingStatusDto } from './dto/update-listing-status.dto';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -54,6 +64,9 @@ export class AdminService {
 
     @InjectModel(ChatMessage.name)
     private readonly messageModel: Model<ChatMessageDocument>,
+
+    @InjectModel(Verification.name)
+    private readonly verificationModel: Model<VerificationDocument>,
 
     private readonly notificationsService: NotificationsService,
   ) {}
@@ -196,6 +209,104 @@ export class AdminService {
 
     return {
       message: 'KYC rejected successfully',
+    };
+  }
+
+  async getVerifications(
+    pagination: PaginationDto,
+    type?: VerificationType,
+    status?: VerificationStatus,
+  ) {
+    const page = pagination.page ?? 1;
+    const limit = pagination.limit ?? 20;
+
+    const filter: any = {};
+
+    if (type) {
+      filter.type = type;
+    }
+
+    if (status) {
+      filter.status = status;
+    }
+
+    const [data, total] = await Promise.all([
+      this.verificationModel
+        .find(filter)
+        .populate('user_id', 'full_name email role')
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit),
+
+      this.verificationModel.countDocuments(filter),
+    ]);
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async pendingVerifications(pagination: PaginationDto) {
+    return this.getVerifications(
+      pagination,
+      undefined,
+      VerificationStatus.PENDING,
+    );
+  }
+
+  async getVerification(id: string) {
+    const verification = await this.verificationModel
+      .findById(id)
+      .populate('user_id', 'full_name email role');
+
+    if (!verification) {
+      throw new NotFoundException('Verification not found');
+    }
+
+    return verification;
+  }
+
+  async approveVerification(id: string, adminId: string) {
+    const verification = await this.verificationModel.findById(id);
+
+    if (!verification) {
+      throw new NotFoundException('Verification not found');
+    }
+
+    verification.status = VerificationStatus.APPROVED;
+    verification.rejection_reason = '';
+    verification.reviewed_by = new Types.ObjectId(adminId);
+    verification.reviewed_at = new Date();
+
+    await verification.save();
+
+    return {
+      message: 'Verification approved successfully',
+    };
+  }
+
+  async rejectVerification(id: string, reason: string, adminId: string) {
+    const verification = await this.verificationModel.findById(id);
+
+    if (!verification) {
+      throw new NotFoundException('Verification not found');
+    }
+
+    verification.status = VerificationStatus.REJECTED;
+    verification.rejection_reason = reason;
+    verification.reviewed_by = new Types.ObjectId(adminId);
+    verification.reviewed_at = new Date();
+
+    await verification.save();
+
+    return {
+      message: 'Verification rejected successfully',
     };
   }
 

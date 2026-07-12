@@ -24,6 +24,7 @@ import { DealsModule } from './deals/deals.module';
 import { ChatModule } from './chat/chat.module';
 import { AdminModule } from './admin/admin.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { VerificationsModule } from './verifications/verifications.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     UsersModule,
     ListingsModule,
     BidsModule,
+    VerificationsModule,
     ContractsModule,
     DealsModule,
     ChatModule,
