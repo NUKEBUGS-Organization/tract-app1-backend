@@ -66,7 +66,7 @@ export class VerificationsService {
         submitted_at: new Date(),
       },
       { upsert: true, new: true, setDefaultsOnInsert: true },
-    );
+    ).lean();
   }
 
   async submitWholesalerVerification(
@@ -124,13 +124,13 @@ export class VerificationsService {
         submitted_at: new Date(),
       },
       { upsert: true, new: true, setDefaultsOnInsert: true },
-    );
+    ).lean();
   }
 
   async getMyVerification(userId: string) {
     const verification = await this.verificationModel.findOne({
       user_id: new Types.ObjectId(userId),
-    });
+    }).lean();
 
     if (!verification) {
       throw new NotFoundException('Verification not found');
@@ -166,7 +166,7 @@ export class VerificationsService {
         type: VerificationType.WHOLESALER,
       });
 
-      if (!verification || !verification.document_url) {
+      if (!verification || !verification.document_url || verification.status !== VerificationStatus.APPROVED) {
         throw new ForbiddenException(
           'You must submit a proof of activity document before you can bid',
         );
