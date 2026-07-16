@@ -12,9 +12,11 @@ import { User, UserSchema } from '../users/schemas/user.schema';
 import { ChatRoom, ChatRoomSchema } from 'src/chat/schemas/chat-room.schema';
 
 import { DealsService } from './deals.service';
+import { DealsAutomationService } from './deals-automation.service';
 import { DealsController } from './deals.controller';
 import { ChatModule } from '../chat/chat.module';
 import { NotificationsModule } from 'src/notifications/notifications.module';
+import { ScoreModule } from '../score/score.module';
 
 @Module({
   imports: [
@@ -39,10 +41,11 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
       { name: Bid.name, schema: BidSchema },
     ]),
     NotificationsModule,
-    forwardRef(() => ChatModule)
+    ScoreModule,
+    forwardRef(() => ChatModule),
   ],
   controllers: [DealsController],
-  providers: [DealsService],
+  providers: [DealsService, DealsAutomationService],
   exports: [DealsService, MongooseModule],
 })
 export class DealsModule {}

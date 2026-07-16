@@ -31,9 +31,11 @@ const NOTIFICATION_TEMPLATE_MAP: Partial<Record<NotificationType, string>> = {
   [NotificationType.CONTRACT_READY]: 'contract-ready',
   [NotificationType.CONTRACT_EXECUTED]: 'contract-executed',
   [NotificationType.DEAL_CLOSED]: 'deal-closed',
+  [NotificationType.DEAL_ACTIVE]: 'deal-milestone',
   [NotificationType.DEAL_UNDER_REVIEW]: 'deal-milestone',
   [NotificationType.DEAL_PROCEEDING]: 'deal-milestone',
   [NotificationType.DEAL_CANCELLED]: 'deal-milestone',
+  [NotificationType.DEAL_BACKUP_ACTIVATED]: 'deal-milestone',
   [NotificationType.CHAT_NEW_MESSAGE]: 'chat-message',
 };
 
@@ -50,9 +52,12 @@ const NOTIFICATION_SUBJECT_MAP: Partial<Record<NotificationType, string>> = {
   [NotificationType.CONTRACT_EXECUTED]:
     'Contract fully executed — deal is active',
   [NotificationType.DEAL_CLOSED]: 'Deal closed — congratulations!',
+  [NotificationType.DEAL_ACTIVE]: 'Deal update: Now Active',
   [NotificationType.DEAL_UNDER_REVIEW]: 'Deal update: Under Review',
   [NotificationType.DEAL_PROCEEDING]: 'Deal update: Proceeding to Closing',
   [NotificationType.DEAL_CANCELLED]: 'Deal update: Cancelled',
+  [NotificationType.DEAL_BACKUP_ACTIVATED]:
+    'Deal update: Backup Offer Activated',
   [NotificationType.CHAT_NEW_MESSAGE]: 'You have a new message on TRACT',
 };
 
