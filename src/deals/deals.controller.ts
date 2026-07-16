@@ -26,6 +26,7 @@ import { DealsService } from './deals.service';
 
 import { UploadMarketingProofDto } from './dto/upload-marketing-proof.dto';
 import { UploadMarketLaunchProofDto } from './dto/upload-market-launch-proof.dto';
+import { TriggerKillSwitchDto } from './dto/trigger-kill-switch.dto';
 
 import type { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 
@@ -144,5 +145,30 @@ export class DealsController {
     req: AuthenticatedRequest,
   ) {
     return this.dealsService.closeDeal(dealId, req.user._id);
+  }
+
+  @Post(':id/kill-switch')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary:
+      'Trigger the seller kill switch for a missed deadline: cancels the deal, activates the backup partner, and applies the matching score penalty',
+  })
+  async triggerKillSwitch(
+    @Param('id')
+    dealId: string,
+
+    @Body()
+    dto: TriggerKillSwitchDto,
+
+    @Request()
+    req: AuthenticatedRequest,
+  ) {
+    return this.dealsService.triggerKillSwitch(
+      dealId,
+      dto.reason,
+      req.user._id,
+      dto.note,
+    );
   }
 }
