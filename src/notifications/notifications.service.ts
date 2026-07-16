@@ -483,6 +483,47 @@ export class NotificationsService {
     });
   }
 
+  async notifyScorePenalty(params: {
+    user_id: string;
+    score_type: string;
+    event_type: string;
+    delta: number;
+    score_after: number;
+    note?: string | null;
+  }) {
+    await this.dispatch({
+      recipient_id: params.user_id,
+      type: NotificationType.SCORE_PENALTY_APPLIED,
+      title: `${params.score_type === 'reliability' ? 'Reliability' : 'Professional'} score penalty applied`,
+      body: params.note
+        ? `${params.note} (${params.delta} points). Your score is now ${params.score_after}.`
+        : `A ${params.delta} point penalty (${params.event_type.replace(/_/g, ' ')}) was applied. Your score is now ${params.score_after}.`,
+      metadata: {
+        score_type: params.score_type,
+        event_type: params.event_type,
+        delta: params.delta,
+        score_after: params.score_after,
+      },
+    });
+  }
+
+  async notifyScoreRestriction(params: {
+    user_id: string;
+    restriction_status: string;
+    score: number;
+  }) {
+    await this.dispatch({
+      recipient_id: params.user_id,
+      type: NotificationType.SCORE_RESTRICTION_APPLIED,
+      title: 'Account access restricted',
+      body: `Your score has dropped to ${params.score}, and your account status is now "${params.restriction_status.replace(/_/g, ' ')}".`,
+      metadata: {
+        restriction_status: params.restriction_status,
+        score: params.score,
+      },
+    });
+  }
+
   // ─── Query methods (in-app feed) ───────────────────────────────────────────
 
   async getUserNotifications(userId: string, page = 1, limit = 20) {

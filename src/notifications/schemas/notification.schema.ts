@@ -32,6 +32,10 @@ export enum NotificationType {
 
   // Chat
   CHAT_NEW_MESSAGE = 'chat_new_message',
+
+  // Score / reliability
+  SCORE_PENALTY_APPLIED = 'score_penalty_applied',
+  SCORE_RESTRICTION_APPLIED = 'score_restriction_applied',
 }
 
 export enum NotificationChannel {
