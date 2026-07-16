@@ -25,6 +25,7 @@ import { DealsModule } from './deals/deals.module';
 import { ChatModule } from './chat/chat.module';
 import { AdminModule } from './admin/admin.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { VerificationsModule } from './verifications/verifications.module';
 import { ScoreModule } from './score/score.module';
 import { PropertyDataModule } from './property-data/property-data.module';
 
@@ -53,6 +54,7 @@ import { PropertyDataModule } from './property-data/property-data.module';
     UsersModule,
     ListingsModule,
     BidsModule,
+    VerificationsModule,
     ContractsModule,
     DealsModule,
     ChatModule,

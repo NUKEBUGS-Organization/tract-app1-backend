@@ -30,6 +30,12 @@ import { Role } from '../users/schemas/user.schema';
 import { BanUserDto } from './dto/ban-user.dto';
 import { RejectKycDto } from './dto/reject-kyc.dto';
 import { RejectListingDto } from './dto/reject-listing.dto';
+import { RejectVerificationDto } from './dto/reject-verification.dto';
+
+import {
+  VerificationStatus,
+  VerificationType,
+} from '../verifications/schemas/verification.schema';
 
 import { PaginationDto } from './dto/pagination.dto';
 
@@ -157,6 +163,107 @@ export class AdminController {
     dto: RejectKycDto,
   ) {
     return this.adminService.rejectKyc(userId);
+  }
+
+  // =====================================================
+  // VERIFICATIONS
+  // =====================================================
+
+  @Get('verifications')
+  @ApiOperation({
+    summary: 'Get all realtor/wholesaler verifications',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: VerificationType,
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: VerificationStatus,
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+  })
+  async getVerifications(
+    @Query() pagination: PaginationDto,
+    @Query('type') type?: VerificationType,
+    @Query('status') status?: VerificationStatus,
+  ) {
+    return this.adminService.getVerifications(pagination, type, status);
+  }
+
+  @Get('verifications/pending')
+  @ApiOperation({
+    summary: 'Get pending verifications awaiting review',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+  })
+  async pendingVerifications(@Query() pagination: PaginationDto) {
+    return this.adminService.pendingVerifications(pagination);
+  }
+
+  @Get('verifications/:id')
+  @ApiOperation({
+    summary: 'Get verification details',
+  })
+  @ApiParam({
+    name: 'id',
+  })
+  async getVerification(
+    @Param('id')
+    id: string,
+  ) {
+    return this.adminService.getVerification(id);
+  }
+
+  @Post('verifications/:id/approve')
+  @ApiOperation({
+    summary: 'Approve verification',
+  })
+  @ApiParam({
+    name: 'id',
+  })
+  async approveVerification(
+    @Param('id')
+    id: string,
+
+    @Request()
+    req: AuthenticatedRequest,
+  ) {
+    return this.adminService.approveVerification(id, req.user._id);
+  }
+
+  @Post('verifications/:id/reject')
+  @ApiOperation({
+    summary: 'Reject verification',
+  })
+  @ApiParam({
+    name: 'id',
+  })
+  async rejectVerification(
+    @Param('id')
+    id: string,
+
+    @Body()
+    dto: RejectVerificationDto,
+
+    @Request()
+    req: AuthenticatedRequest,
+  ) {
+    return this.adminService.rejectVerification(id, dto.reason, req.user._id);
   }
 
   // =====================================================

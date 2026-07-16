@@ -14,6 +14,10 @@ import {
   ChatMessage,
   ChatMessageSchema,
 } from '../chat/schemas/chat-message.schema';
+import {
+  Verification,
+  VerificationSchema,
+} from '../verifications/schemas/verification.schema';
 import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
@@ -26,8 +30,9 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
       { name: Deal.name, schema: DealSchema },
       { name: ChatRoom.name, schema: ChatRoomSchema },
       { name: ChatMessage.name, schema: ChatMessageSchema },
+      { name: Verification.name, schema: VerificationSchema },
     ]),
-    NotificationsModule
+    NotificationsModule,
   ],
   controllers: [AdminController],
   providers: [AdminService],

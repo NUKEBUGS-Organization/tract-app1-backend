@@ -9,7 +9,12 @@ import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 
 import { Connection, Model, Types } from 'mongoose';
 
-import { Bid, BidDocument, BidStatus } from './schemas/bid.schema';
+import {
+  Bid,
+  BidDocument,
+  BidStatus,
+  PaymentSource,
+} from './schemas/bid.schema';
 
 import {
   Listing,
@@ -22,6 +27,7 @@ import { User, UserDocument, Role } from '../users/schemas/user.schema';
 import { CreateBidDto } from './dto/create-bid.dto';
 
 import { NotificationsService } from '../notifications/notifications.service';
+import { VerificationsService } from '../verifications/verifications.service';
 
 @Injectable()
 export class BidsService {
@@ -39,7 +45,51 @@ export class BidsService {
     private readonly connection: Connection,
 
     private readonly notificationsService: NotificationsService,
+
+    private readonly verificationsService: VerificationsService,
   ) {}
+
+  private buildRoleFields(role: Role, dto: CreateBidDto) {
+    if (role === Role.REALTOR) {
+      if (
+        dto.commission_percentage === undefined ||
+        dto.closing_timeline_days === undefined ||
+        dto.agency_role === undefined ||
+        dto.payment_source === undefined
+      ) {
+        throw new BadRequestException(
+          'commission_percentage, closing_timeline_days, agency_role and payment_source are required for realtor bids',
+        );
+      }
+
+      return {
+        commission_percentage: dto.commission_percentage,
+        closing_timeline_days: dto.closing_timeline_days,
+        agency_role: dto.agency_role,
+        payment_source: dto.payment_source,
+      };
+    }
+
+    if (role === Role.WHOLESALER) {
+      if (
+        dto.inspection_period === undefined ||
+        dto.due_diligence_period === undefined
+      ) {
+        throw new BadRequestException(
+          'inspection_period and due_diligence_period are required for wholesaler bids',
+        );
+      }
+
+      return {
+        inspection_period: dto.inspection_period,
+        due_diligence_period: dto.due_diligence_period,
+        loi_url: dto.loi_url,
+        proof_of_funds_url: dto.proof_of_funds_url,
+      };
+    }
+
+    throw new BadRequestException('Role is not permitted to submit bids');
+  }
 
   async createBid(listingId: string, bidderId: string, dto: CreateBidDto) {
     const listing = await this.listingModel.findById(listingId);
@@ -65,6 +115,8 @@ export class BidsService {
     if (bidder.is_banned) {
       throw new ForbiddenException('Account is banned');
     }
+
+    await this.verificationsService.assertCanBid(bidderId, bidder.role);
 
     if (listing.bid_count >= 10) {
       throw new BadRequestException('Maximum bid limit reached');
@@ -92,11 +144,17 @@ export class BidsService {
       }
     }
 
+    const roleFields = this.buildRoleFields(bidder.role, dto);
+
     let netToSeller = dto.bid_price;
 
-    if (bidder.role === Role.REALTOR && listing.realtor_commission) {
+    if (
+      bidder.role === Role.REALTOR &&
+      dto.payment_source === PaymentSource.SELLER_PAYS &&
+      dto.commission_percentage
+    ) {
       netToSeller =
-        dto.bid_price - dto.bid_price * (listing.realtor_commission / 100);
+        dto.bid_price - dto.bid_price * (dto.commission_percentage / 100);
     }
 
     const session = await this.connection.startSession();
@@ -113,8 +171,7 @@ export class BidsService {
             property_id: listing._id,
             bidder_id: bidder._id,
             bid_price: dto.bid_price,
-            inspection_period: dto.inspection_period,
-            due_diligence_period: dto.due_diligence_period,
+            ...roleFields,
             net_to_seller: netToSeller,
             submitted_at: new Date(),
           },
@@ -194,7 +251,8 @@ export class BidsService {
       })
       .populate({
         path: 'bidder_id',
-        select: 'full_name role reliability_score professional_score',
+        select:
+          'full_name role reliability_score professional_score deal_count',
       })
       .sort({
         net_to_seller: -1,
@@ -206,7 +264,7 @@ export class BidsService {
       .findById(bidId)
       .populate(
         'bidder_id',
-        'full_name email role reliability_score professional_score',
+        'full_name email role reliability_score professional_score deal_count',
       )
       .populate('property_id');
 
@@ -363,22 +421,53 @@ export class BidsService {
   }
 
   async deleteBid(bidId: string, userId: string) {
-    const bid = await this.bidModel.findById(bidId);
+    const session = await this.connection.startSession();
 
-    if (!bid) {
-      throw new NotFoundException('Bid not found');
+    try {
+      session.startTransaction();
+
+      const bid = await this.bidModel.findById(bidId).session(session);
+
+      if (!bid) {
+        throw new NotFoundException('Bid not found');
+      }
+
+      if (bid.bidder_id.toString() !== userId) {
+        throw new ForbiddenException();
+      }
+
+      const alreadyDeleted = bid.status === BidStatus.DELETED;
+
+      bid.deleted_at = new Date();
+      bid.status = BidStatus.DELETED;
+      await bid.save({ session });
+
+      if (!alreadyDeleted) {
+        const listing = await this.listingModel
+          .findById(bid.property_id)
+          .session(session);
+
+        if (listing && listing.bid_count > 0) {
+          listing.bid_count -= 1;
+
+          if (listing.status === ListingStatus.PAUSED) {
+            listing.status = ListingStatus.LIVE;
+          }
+
+          await listing.save({ session });
+        }
+      }
+
+      await session.commitTransaction();
+
+      return {
+        success: true,
+      };
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
     }
-
-    if (bid.bidder_id.toString() !== userId) {
-      throw new ForbiddenException();
-    }
-
-    bid.deleted_at = new Date();
-    bid.status = BidStatus.DELETED;
-    await bid.save();
-
-    return {
-      success: true,
-    };
   }
 }

@@ -9,7 +9,8 @@ import { User, UserSchema } from '../users/schemas/user.schema';
 
 import { BidsController } from './bids.controller';
 import { BidsService } from './bids.service';
-import { NotificationsModule } from '../notifications/notifications.module'; 
+import { NotificationsModule } from '../notifications/notifications.module';
+import { VerificationsModule } from '../verifications/verifications.module';
 
 @Module({
   imports: [
@@ -27,7 +28,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
         schema: UserSchema,
       },
     ]),
-    NotificationsModule
+    NotificationsModule,
+    VerificationsModule,
   ],
   controllers: [BidsController],
   providers: [BidsService],
