@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 
 import appConfig from './config/app.config';
 import databaseConfig from './config/database.config';
@@ -25,6 +26,8 @@ import { ChatModule } from './chat/chat.module';
 import { AdminModule } from './admin/admin.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { VerificationsModule } from './verifications/verifications.module';
+import { ScoreModule } from './score/score.module';
+import { PropertyDataModule } from './property-data/property-data.module';
 
 @Module({
   imports: [
@@ -42,8 +45,9 @@ import { VerificationsModule } from './verifications/verifications.module';
     }),
     ThrottlerModule.forRoot([{
       ttl: 60000,
-      limit: 10,  
+      limit: 10,
     }]),
+    ScheduleModule.forRoot(),
     DatabaseModule,
     AuthModule,
     AdminModule,
@@ -57,7 +61,9 @@ import { VerificationsModule } from './verifications/verifications.module';
     SessionsModule,
     MailModule,
     SmsModule,
-    NotificationsModule
+    NotificationsModule,
+    ScoreModule,
+    PropertyDataModule
   ],
   controllers: [AppController],
   providers: [AppService, {

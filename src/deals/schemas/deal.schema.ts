@@ -72,6 +72,15 @@ export class Deal {
   })
   market_launch_deadline: Date;
 
+  // Wholesaler deals only — bid.inspection_period days after the deal goes
+  // active. Past this with no proceed_to_closing_at, the kill switch fires
+  // automatically (§2 Failure to Proceed to Closing).
+  @Prop({
+    type: Date,
+    default: null,
+  })
+  inspection_deadline: Date | null;
+
   @Prop({
     default: null,
   })
