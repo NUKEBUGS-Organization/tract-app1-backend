@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -15,10 +16,10 @@ import {
   ContractStatus,
 } from './schemas/contract.schema';
 
-import { Deal, DealDocument } from '../deals/schemas/deal.schema';
+import { Deal, DealDocument, DealStatus } from '../deals/schemas/deal.schema';
 import { Bid, BidDocument, BidStatus } from '../bids/schemas/bid.schema';
 import { Listing, ListingDocument } from '../listings/schemas/listing.schema';
-import { User, UserDocument } from '../users/schemas/user.schema';
+import { User, UserDocument, Role } from '../users/schemas/user.schema';
 
 import { CreateContractDto } from './dto/create-contract.dto';
 import { DealsService } from 'src/deals/deals.service';
@@ -556,14 +557,48 @@ export class ContractsService {
     return contract;
   }
 
-  async cancelContract(contractId: string) {
+  async cancelContract(contractId: string, userId: string) {
     const contract = await this.contractModel.findById(contractId);
 
     if (!contract) throw new NotFoundException();
 
-    contract.status = ContractStatus.CANCELLED;
+    const user = await this.userModel.findById(userId);
+    const isSeller = contract.seller_id.toString() === userId;
+    const isBuyer = contract.buyer_id.toString() === userId;
+    const isAdmin = user?.role === Role.ADMIN;
 
+    if (!isSeller && !isBuyer && !isAdmin) {
+      throw new ForbiddenException();
+    }
+
+    if (contract.status === ContractStatus.CANCELLED) {
+      throw new ConflictException('Contract is already cancelled');
+    }
+
+    contract.status = ContractStatus.CANCELLED;
     await contract.save();
+
+    // Cascade to the related deal, if one exists — a cancelled contract
+    // can't be left with an active deal still ticking on its timers,
+    // accepting proof uploads, or leaving its chat open.
+    const deal = await this.dealModel.findOne({ contract_id: contract._id });
+    const terminalStatuses = [
+      DealStatus.CANCELLED,
+      DealStatus.CLOSED,
+      DealStatus.BACKUP_ACTIVATED,
+    ];
+
+    if (deal && !terminalStatuses.includes(deal.status)) {
+      try {
+        await this.dealsService.cancelDeal(deal._id.toString(), userId);
+      } catch (err) {
+        this.logger.error(
+          `Failed to cascade-cancel deal ${deal._id.toString()} for contract ${contractId}: ${err.message}`,
+          err.stack,
+        );
+      }
+    }
+
     return contract;
   }
 

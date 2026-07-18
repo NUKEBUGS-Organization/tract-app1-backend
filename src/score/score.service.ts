@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -118,6 +119,42 @@ export class ScoreService implements OnModuleInit {
       };
     }
     return { status: RestrictionStatus.NORMAL, restrictedUntil: null };
+  }
+
+  // Gate for bidding/transacting — re-derives the restriction from the
+  // user's live score rather than trusting the cached restriction_status
+  // field, so it's correct even if the score was changed by a path that
+  // bypassed applyPenalty/resetScore (e.g. a direct admin edit) and never
+  // recomputed that field. TRACT App 1 Score Rules §3.
+  async assertNotRestricted(userId: string): Promise<void> {
+    const user = await this.userModel.findById(userId);
+    if (!user) return;
+
+    if (user.is_banned) {
+      throw new ForbiddenException('Account is banned');
+    }
+
+    if (user.role !== Role.WHOLESALER && user.role !== Role.REALTOR) {
+      return;
+    }
+
+    const score = user[this.scoreFieldFor(user.role)];
+
+    if (score < REINSTATEMENT_THRESHOLD) {
+      throw new ForbiddenException(
+        `Your ${user.role === Role.WHOLESALER ? 'reliability' : 'professional'} score (${score}) has dropped below ${REINSTATEMENT_THRESHOLD}. Contact support for reinstatement before bidding again.`,
+      );
+    }
+
+    if (
+      score < DELAYED_ACCESS_THRESHOLD &&
+      user.restricted_until &&
+      user.restricted_until > new Date()
+    ) {
+      throw new ForbiddenException(
+        `Your account has delayed access due to a low score. You can bid again after ${user.restricted_until.toISOString()}.`,
+      );
+    }
   }
 
   // ─── Core operations ────────────────────────────────────────────────────────

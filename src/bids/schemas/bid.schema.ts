@@ -77,8 +77,8 @@ export class Bid {
   @Prop({ type: String, enum: BidStatus, default: BidStatus.ACTIVE })
   status: BidStatus;
 
-  @Prop({ default: null })
-  backup_position: number; // 1, 2, or null
+  @Prop({ type: Number, default: null })
+  backup_position: number | null; // 1, 2, or null
 
   @Prop({ default: null })
   net_to_seller: number; // computed: bid_price - commission (if realtor)

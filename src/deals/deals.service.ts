@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -7,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Bid, BidDocument } from '../bids/schemas/bid.schema';
+import { Bid, BidDocument, BidStatus } from '../bids/schemas/bid.schema';
 import { Deal, DealDocument, DealStatus } from './schemas/deal.schema';
 import {
   Contract,
@@ -68,6 +69,71 @@ export class DealsService {
     return { seller, buyer, listing };
   }
 
+  // Every deal-ending transition (closed, cancelled, kill-switched to a
+  // backup) must lock the chat room — sendMessage only checks
+  // room.is_locked, so skipping this leaves messaging open indefinitely
+  // even though the frontend shows the deal/chat as over.
+  private async lockChatRoom(dealId: Types.ObjectId) {
+    await this.chatRoomModel.findOneAndUpdate(
+      { deal_id: dealId },
+      { is_locked: true, is_active: false },
+    );
+  }
+
+  // When a deal's bid falls through (cancelled, or kill-switched), the bid
+  // itself must stop reading as SELECTED — otherwise the seller's
+  // bid-comparison UI keeps hiding the "select as primary" action on every
+  // other bid, since it keys off "is any bid currently selected". The
+  // closest backup, if one exists, steps up to become the new primary so
+  // the seller can create a contract with them without re-picking from
+  // scratch; the listing reopens to LIVE either way since there's no
+  // active contract left in progress at this point.
+  private async demoteBidAndPromoteBackup(deal: DealDocument) {
+    const contract = await this.contractModel.findById(deal.contract_id);
+    if (!contract) return;
+
+    const bid = await this.bidModel.findById(contract.bid_id);
+    if (bid && bid.status === BidStatus.SELECTED) {
+      bid.status = BidStatus.REJECTED;
+      await bid.save();
+    }
+
+    const backup = await this.bidModel
+      .findOne({
+        property_id: deal.listing_id,
+        status: BidStatus.BACKUP,
+        deleted_at: null,
+      })
+      .sort({ backup_position: 1 });
+
+    if (backup) {
+      backup.status = BidStatus.SELECTED;
+      backup.backup_position = null;
+      await backup.save();
+    }
+
+    await this.listingModel.findByIdAndUpdate(deal.listing_id, {
+      status: ListingStatus.LIVE,
+    });
+  }
+
+  private static readonly TERMINAL_DEAL_STATUSES = [
+    DealStatus.CANCELLED,
+    DealStatus.CLOSED,
+    DealStatus.BACKUP_ACTIVATED,
+  ];
+
+  // Guards proof uploads / proceed-to-closing against a deal that's already
+  // over — without this, a cancelled/closed deal keeps accepting actions
+  // that only make sense while it's actually in progress.
+  private assertDealIsActionable(deal: DealDocument) {
+    if (DealsService.TERMINAL_DEAL_STATUSES.includes(deal.status)) {
+      throw new BadRequestException(
+        `This deal is ${deal.status} and no longer accepts this action`,
+      );
+    }
+  }
+
   async getDeal(dealId: string, userId: string) {
     const deal = await this.dealModel
       .findById(dealId)
@@ -124,6 +190,8 @@ export class DealsService {
       throw new NotFoundException('Deal not found');
     }
 
+    this.assertDealIsActionable(deal);
+
     const buyer = await this.userModel.findById(deal.buyer_id);
 
     if (buyer?.role !== Role.WHOLESALER) {
@@ -178,6 +246,8 @@ export class DealsService {
       throw new NotFoundException('Deal not found');
     }
 
+    this.assertDealIsActionable(deal);
+
     const buyer = await this.userModel.findById(deal.buyer_id);
 
     if (buyer?.role !== Role.REALTOR) {
@@ -227,6 +297,8 @@ export class DealsService {
     if (!deal) {
       throw new NotFoundException('Deal not found');
     }
+
+    this.assertDealIsActionable(deal);
 
     if (deal.buyer_id.toString() !== userId) {
       throw new ForbiddenException();
@@ -280,6 +352,10 @@ export class DealsService {
       throw new ForbiddenException();
     }
 
+    if (DealsService.TERMINAL_DEAL_STATUSES.includes(deal.status)) {
+      throw new ConflictException(`Deal is already ${deal.status}`);
+    }
+
     // Wholesaler backs out of their own active deal before proceeding to
     // closing — treated as an inspection cancellation (§2, -20), applied
     // automatically since the buyer's own action is the trigger.
@@ -308,7 +384,23 @@ export class DealsService {
     }
 
     deal.status = DealStatus.CANCELLED;
+    // Stop the Deal Tracker countdown — a cancelled deal has no live
+    // deadline to count down to, regardless of what was pending.
+    deal.marketing_deadline = null;
+    deal.market_launch_deadline = null;
+    deal.inspection_deadline = null;
     await deal.save();
+
+    await this.lockChatRoom(deal._id);
+
+    try {
+      await this.demoteBidAndPromoteBackup(deal);
+    } catch (err) {
+      this.logger.error(
+        `Failed to demote bid / promote backup for deal ${dealId}: ${err.message}`,
+        err.stack,
+      );
+    }
 
     // 🔔 Notify: Deal cancelled
     const { seller, buyer, listing } = await this.getDealParticipants(deal);
@@ -359,16 +451,7 @@ export class DealsService {
       status: ListingStatus.CLOSED,
     });
 
-    // Lock associated chat room
-    await this.chatRoomModel.findOneAndUpdate(
-      {
-        deal_id: deal._id,
-      },
-      {
-        is_locked: true,
-        is_active: false,
-      },
-    );
+    await this.lockChatRoom(deal._id);
 
     // 🔔 Notify: Deal closed
     const {
@@ -428,6 +511,17 @@ export class DealsService {
     deal.status = DealStatus.BACKUP_ACTIVATED;
     deal.kill_switch_triggered_at = new Date();
     await deal.save();
+
+    await this.lockChatRoom(deal._id);
+
+    try {
+      await this.demoteBidAndPromoteBackup(deal);
+    } catch (err) {
+      this.logger.error(
+        `Failed to demote bid / promote backup for deal ${dealId}: ${err.message}`,
+        err.stack,
+      );
+    }
 
     // Apply the matching score penalty to the buyer partner — TRACT App 1
     // Score Rules §2/§5: missed marketing/market-launch proof or failure to
