@@ -4,7 +4,7 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class UploadMarketLaunchProofDto {
   @ApiProperty({
-    example: 'https://s3.amazonaws.com/tract/mls-proof.pdf',
+    example: 'https://res.cloudinary.com/tract/mls-proof.pdf',
   })
   @IsString()
   @IsNotEmpty()
