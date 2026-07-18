@@ -97,6 +97,20 @@ export class PropertyDataService {
       );
       data = response.data;
     } catch (err) {
+      // ATTOM returns HTTP 400 (not 200 + empty array) when it simply has
+      // no property record matching the address — this is a normal "not
+      // found" outcome for plenty of real addresses, not an upstream
+      // failure, so it shouldn't be logged as an error or surfaced as 502.
+      if (axios.isAxiosError(err) && err.response?.status === 400) {
+        const body = err.response.data as AttomPropertyResponse | undefined;
+        this.logger.warn(
+          `ATTOM has no property record for "${address1}, ${address2}" (${body?.status?.msg ?? 'no match'})`,
+        );
+        throw new NotFoundException(
+          'No property record found for that address',
+        );
+      }
+
       this.logger.error(
         `ATTOM lookup failed for "${address1}, ${address2}": ${err.message}`,
         err.stack,
