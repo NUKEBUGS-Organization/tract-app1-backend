@@ -10,7 +10,6 @@ import {
   DocumentVault,
   DocumentSchema,
 } from '../documents/schemas/document.schema';
-import { S3Service } from '../common/services/s3.service';
 import { CloudinaryService } from '../common/services/cloudinary.service';
 
 @Module({
@@ -20,10 +19,10 @@ import { CloudinaryService } from '../common/services/cloudinary.service';
       { name: Bid.name, schema: BidSchema },
       { name: DocumentVault.name, schema: DocumentSchema },
     ]),
-    MulterModule.register({ storage: memoryStorage() }), // store in memory, upload to S3
+    MulterModule.register({ storage: memoryStorage() }), // store in memory, upload to Cloudinary
   ],
   controllers: [ListingsController],
-  providers: [ListingsService, S3Service, CloudinaryService],
+  providers: [ListingsService, CloudinaryService],
   exports: [ListingsService, MongooseModule],
 })
 export class ListingsModule {}

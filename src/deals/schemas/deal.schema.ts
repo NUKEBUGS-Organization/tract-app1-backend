@@ -63,14 +63,16 @@ export class Deal {
   market_launch_proof_url: string;
 
   @Prop({
+    type: Date,
     default: null,
   })
-  marketing_deadline: Date;
+  marketing_deadline: Date | null;
 
   @Prop({
+    type: Date,
     default: null,
   })
-  market_launch_deadline: Date;
+  market_launch_deadline: Date | null;
 
   // Wholesaler deals only — bid.inspection_period days after the deal goes
   // active. Past this with no proceed_to_closing_at, the kill switch fires

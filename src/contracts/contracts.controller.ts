@@ -114,7 +114,7 @@ export class ContractsController {
 
   @Post('/:id/cancel')
   @ApiOperation({ summary: 'Cancel a contract' })
-  cancel(@Param('id') id: string) {
-    return this.contractsService.cancelContract(id);
+  cancel(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
+    return this.contractsService.cancelContract(id, req.user._id);
   }
 }

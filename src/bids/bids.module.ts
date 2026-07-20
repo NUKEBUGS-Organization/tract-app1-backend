@@ -11,6 +11,7 @@ import { BidsController } from './bids.controller';
 import { BidsService } from './bids.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { VerificationsModule } from '../verifications/verifications.module';
+import { ScoreModule } from '../score/score.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { VerificationsModule } from '../verifications/verifications.module';
     ]),
     NotificationsModule,
     VerificationsModule,
+    ScoreModule,
   ],
   controllers: [BidsController],
   providers: [BidsService],

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -28,6 +29,7 @@ import { CreateBidDto } from './dto/create-bid.dto';
 
 import { NotificationsService } from '../notifications/notifications.service';
 import { VerificationsService } from '../verifications/verifications.service';
+import { ScoreService } from '../score/score.service';
 
 @Injectable()
 export class BidsService {
@@ -47,6 +49,8 @@ export class BidsService {
     private readonly notificationsService: NotificationsService,
 
     private readonly verificationsService: VerificationsService,
+
+    private readonly scoreService: ScoreService,
   ) {}
 
   private buildRoleFields(role: Role, dto: CreateBidDto) {
@@ -112,9 +116,10 @@ export class BidsService {
       throw new NotFoundException('User not found');
     }
 
-    if (bidder.is_banned) {
-      throw new ForbiddenException('Account is banned');
-    }
+    // TRACT App 1 Score Rules §3 — blocks banned accounts, accounts with
+    // score < 30 (reinstatement required), and accounts mid-delayed-access
+    // (score < 50, within 48h of the triggering penalty).
+    await this.scoreService.assertNotRestricted(bidderId);
 
     await this.verificationsService.assertCanBid(bidderId, bidder.role);
 
@@ -434,6 +439,22 @@ export class BidsService {
 
       if (bid.bidder_id.toString() !== userId) {
         throw new ForbiddenException();
+      }
+
+      // A SELECTED bid is the seller's active deal; a BACKUP bid is the
+      // seller's safety net if that deal falls through. Letting the bidder
+      // silently withdraw either here would desync the listing (stuck at
+      // UNDER_CONTRACT with no bid to show for it) and orphan any
+      // Contract/Deal already created off this bid. Backing out of an
+      // accepted bid has to go through deal cancellation (scored, visible
+      // to the seller), not a bare delete.
+      if (
+        bid.status === BidStatus.SELECTED ||
+        bid.status === BidStatus.BACKUP
+      ) {
+        throw new ConflictException(
+          'This bid has already been selected by the seller and cannot be withdrawn directly. Cancel the deal instead.',
+        );
       }
 
       const alreadyDeleted = bid.status === BidStatus.DELETED;
