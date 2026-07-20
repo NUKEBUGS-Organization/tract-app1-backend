@@ -80,19 +80,22 @@ export class DealsService {
     );
   }
 
-  // When a deal's bid falls through (cancelled, or kill-switched), the bid
-  // itself must stop reading as SELECTED — otherwise the seller's
+  // When a selected bid falls through — deal cancelled, kill-switched, or
+  // its contract cancelled before a deal even existed yet (pre-signing) —
+  // the bid itself must stop reading as SELECTED. Otherwise the seller's
   // bid-comparison UI keeps hiding the "select as primary" action on every
   // other bid, since it keys off "is any bid currently selected". The
   // closest backup, if one exists, steps up to become the new primary so
   // the seller can create a contract with them without re-picking from
   // scratch; the listing reopens to LIVE either way since there's no
-  // active contract left in progress at this point.
-  private async demoteBidAndPromoteBackup(deal: DealDocument) {
-    const contract = await this.contractModel.findById(deal.contract_id);
-    if (!contract) return;
-
-    const bid = await this.bidModel.findById(contract.bid_id);
+  // active contract left in progress at this point. Public because
+  // ContractsService also calls this directly for the pre-deal case,
+  // where there's no Deal document to look the bid up through.
+  async demoteBidAndPromoteBackup(
+    bidId: Types.ObjectId,
+    listingId: Types.ObjectId,
+  ) {
+    const bid = await this.bidModel.findById(bidId);
     if (bid && bid.status === BidStatus.SELECTED) {
       bid.status = BidStatus.REJECTED;
       await bid.save();
@@ -100,7 +103,7 @@ export class DealsService {
 
     const backup = await this.bidModel
       .findOne({
-        property_id: deal.listing_id,
+        property_id: listingId,
         status: BidStatus.BACKUP,
         deleted_at: null,
       })
@@ -112,9 +115,15 @@ export class DealsService {
       await backup.save();
     }
 
-    await this.listingModel.findByIdAndUpdate(deal.listing_id, {
+    await this.listingModel.findByIdAndUpdate(listingId, {
       status: ListingStatus.LIVE,
     });
+  }
+
+  private async demoteBidAndPromoteBackupForDeal(deal: DealDocument) {
+    const contract = await this.contractModel.findById(deal.contract_id);
+    if (!contract) return;
+    await this.demoteBidAndPromoteBackup(contract.bid_id, deal.listing_id);
   }
 
   private static readonly TERMINAL_DEAL_STATUSES = [
@@ -394,7 +403,7 @@ export class DealsService {
     await this.lockChatRoom(deal._id);
 
     try {
-      await this.demoteBidAndPromoteBackup(deal);
+      await this.demoteBidAndPromoteBackupForDeal(deal);
     } catch (err) {
       this.logger.error(
         `Failed to demote bid / promote backup for deal ${dealId}: ${err.message}`,
@@ -515,7 +524,7 @@ export class DealsService {
     await this.lockChatRoom(deal._id);
 
     try {
-      await this.demoteBidAndPromoteBackup(deal);
+      await this.demoteBidAndPromoteBackupForDeal(deal);
     } catch (err) {
       this.logger.error(
         `Failed to demote bid / promote backup for deal ${dealId}: ${err.message}`,

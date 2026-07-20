@@ -588,15 +588,27 @@ export class ContractsService {
       DealStatus.BACKUP_ACTIVATED,
     ];
 
-    if (deal && !terminalStatuses.includes(deal.status)) {
-      try {
+    try {
+      if (deal && !terminalStatuses.includes(deal.status)) {
+        // Both parties had already signed — cancelDeal handles status,
+        // chat lock, deadlines, and bid/backup demotion in one call.
         await this.dealsService.cancelDeal(deal._id.toString(), userId);
-      } catch (err) {
-        this.logger.error(
-          `Failed to cascade-cancel deal ${deal._id.toString()} for contract ${contractId}: ${err.message}`,
-          err.stack,
+      } else if (!deal) {
+        // Cancelled before signing completed, so no Deal was ever created
+        // and cancelDeal above never runs — nothing else will touch the
+        // bid. Demote it directly (and promote a backup) using the data
+        // already on the contract, so the bid doesn't stay stuck at
+        // SELECTED and the listing doesn't stay stuck at UNDER_CONTRACT.
+        await this.dealsService.demoteBidAndPromoteBackup(
+          contract.bid_id,
+          contract.property_id,
         );
       }
+    } catch (err) {
+      this.logger.error(
+        `Failed to cascade-cancel deal/bid for contract ${contractId}: ${err.message}`,
+        err.stack,
+      );
     }
 
     return contract;
