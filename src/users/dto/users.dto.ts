@@ -3,17 +3,17 @@ import {
   IsString,
   IsDateString,
   IsNotEmpty,
-  MinLength
+  MinLength,
 } from 'class-validator';
 
 export class UpdateUserDto {
   @IsOptional()
   @IsString()
-  full_name?: string;
+  fullName?: string;
 
   @IsOptional()
   @IsString()
-  state_code?: string;
+  stateCode?: string;
 
   @IsOptional()
   @IsDateString()
@@ -28,9 +28,9 @@ export class BanUserDto {
 
 export class ChangePasswordDto {
   @IsString()
-  current_password: string;
+  currentPassword: string;
 
   @IsString()
   @MinLength(8)
-  new_password: string;
+  newPassword: string;
 }

@@ -146,8 +146,8 @@ export class DealsService {
   async getDeal(dealId: string, userId: string) {
     const deal = await this.dealModel
       .findById(dealId)
-      .populate('seller_id', 'full_name email')
-      .populate('buyer_id', 'full_name email')
+      .populate('seller_id', 'fullName email')
+      .populate('buyer_id', 'fullName email')
       .populate('listing_id')
       .populate('contract_id');
 
@@ -223,10 +223,10 @@ export class DealsService {
         .notifyDealMilestone({
           seller_id: seller._id.toString(),
           seller_email: seller.email,
-          seller_name: seller.full_name,
+          seller_name: seller.fullName,
           buyer_id: buyer._id.toString(),
           buyer_email: buyer.email,
-          buyer_name: buyer.full_name,
+          buyer_name: buyer.fullName,
           deal_id: deal._id.toString(),
           listing_id: deal.listing_id.toString(),
           address: listing.address,
@@ -279,10 +279,10 @@ export class DealsService {
         .notifyDealMilestone({
           seller_id: seller._id.toString(),
           seller_email: seller.email,
-          seller_name: seller.full_name,
+          seller_name: seller.fullName,
           buyer_id: buyer._id.toString(),
           buyer_email: buyer.email,
-          buyer_name: buyer.full_name,
+          buyer_name: buyer.fullName,
           deal_id: deal._id.toString(),
           listing_id: deal.listing_id.toString(),
           address: listing.address,
@@ -324,10 +324,10 @@ export class DealsService {
         .notifyDealMilestone({
           seller_id: seller._id.toString(),
           seller_email: seller.email,
-          seller_name: seller.full_name,
+          seller_name: seller.fullName,
           buyer_id: buyer._id.toString(),
           buyer_email: buyer.email,
-          buyer_name: buyer.full_name,
+          buyer_name: buyer.fullName,
           deal_id: deal._id.toString(),
           listing_id: deal.listing_id.toString(),
           address: listing.address,
@@ -418,10 +418,10 @@ export class DealsService {
         .notifyDealMilestone({
           seller_id: seller._id.toString(),
           seller_email: seller.email,
-          seller_name: seller.full_name,
+          seller_name: seller.fullName,
           buyer_id: buyer._id.toString(),
           buyer_email: buyer.email,
-          buyer_name: buyer.full_name,
+          buyer_name: buyer.fullName,
           deal_id: deal._id.toString(),
           listing_id: deal.listing_id.toString(),
           address: listing.address,
@@ -487,10 +487,10 @@ export class DealsService {
         .notifyDealClosed({
           seller_id: sellerUser._id.toString(),
           seller_email: sellerUser.email,
-          seller_name: sellerUser.full_name,
+          seller_name: sellerUser.fullName,
           buyer_id: buyer._id.toString(),
           buyer_email: buyer.email,
-          buyer_name: buyer.full_name,
+          buyer_name: buyer.fullName,
           deal_id: deal._id.toString(),
           listing_id: deal.listing_id.toString(),
           address: listing.address,
@@ -559,10 +559,10 @@ export class DealsService {
         .notifyDealMilestone({
           seller_id: seller._id.toString(),
           seller_email: seller.email,
-          seller_name: seller.full_name,
+          seller_name: seller.fullName,
           buyer_id: buyer._id.toString(),
           buyer_email: buyer.email,
-          buyer_name: buyer.full_name,
+          buyer_name: buyer.fullName,
           deal_id: deal._id.toString(),
           listing_id: deal.listing_id.toString(),
           address: listing.address,
@@ -601,10 +601,10 @@ export class DealsService {
         .notifyDealMilestone({
           seller_id: seller._id.toString(),
           seller_email: seller.email,
-          seller_name: seller.full_name,
+          seller_name: seller.fullName,
           buyer_id: buyer._id.toString(),
           buyer_email: buyer.email,
-          buyer_name: buyer.full_name,
+          buyer_name: buyer.fullName,
           deal_id: deal._id.toString(),
           listing_id: deal.listing_id.toString(),
           address: listing.address,
@@ -683,10 +683,10 @@ export class DealsService {
         .notifyDealMilestone({
           seller_id: seller._id.toString(),
           seller_email: seller.email,
-          seller_name: seller.full_name,
+          seller_name: seller.fullName,
           buyer_id: buyerUser._id.toString(),
           buyer_email: buyerUser.email,
-          buyer_name: buyerUser.full_name,
+          buyer_name: buyerUser.fullName,
           deal_id: deal._id.toString(),
           listing_id: deal.listing_id.toString(),
           address: listing.address,

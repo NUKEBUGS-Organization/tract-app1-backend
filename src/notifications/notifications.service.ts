@@ -509,16 +509,16 @@ export class NotificationsService {
 
   async notifyScoreRestriction(params: {
     user_id: string;
-    restriction_status: string;
+    restrictionStatus: string;
     score: number;
   }) {
     await this.dispatch({
       recipient_id: params.user_id,
       type: NotificationType.SCORE_RESTRICTION_APPLIED,
       title: 'Account access restricted',
-      body: `Your score has dropped to ${params.score}, and your account status is now "${params.restriction_status.replace(/_/g, ' ')}".`,
+      body: `Your score has dropped to ${params.score}, and your account status is now "${params.restrictionStatus.replace(/_/g, ' ')}".`,
       metadata: {
-        restriction_status: params.restriction_status,
+        restrictionStatus: params.restrictionStatus,
         score: params.score,
       },
     });

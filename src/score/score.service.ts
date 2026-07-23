@@ -69,9 +69,9 @@ export class ScoreService implements OnModuleInit {
 
   private scoreFieldFor(
     role: Role,
-  ): 'reliability_score' | 'professional_score' {
-    if (role === Role.WHOLESALER) return 'reliability_score';
-    if (role === Role.REALTOR) return 'professional_score';
+  ): 'reliabilityScore' | 'professionalScore' {
+    if (role === Role.WHOLESALER) return 'reliabilityScore';
+    if (role === Role.REALTOR) return 'professionalScore';
     throw new BadRequestException(
       'Score events only apply to wholesaler or realtor partners',
     );
@@ -122,7 +122,7 @@ export class ScoreService implements OnModuleInit {
   }
 
   // Gate for bidding/transacting — re-derives the restriction from the
-  // user's live score rather than trusting the cached restriction_status
+  // user's live score rather than trusting the cached restrictionStatus
   // field, so it's correct even if the score was changed by a path that
   // bypassed applyPenalty/resetScore (e.g. a direct admin edit) and never
   // recomputed that field. TRACT App 1 Score Rules §3.
@@ -130,7 +130,7 @@ export class ScoreService implements OnModuleInit {
     const user = await this.userModel.findById(userId);
     if (!user) return;
 
-    if (user.is_banned) {
+    if (user.isBanned) {
       throw new ForbiddenException('Account is banned');
     }
 
@@ -148,11 +148,11 @@ export class ScoreService implements OnModuleInit {
 
     if (
       score < DELAYED_ACCESS_THRESHOLD &&
-      user.restricted_until &&
-      user.restricted_until > new Date()
+      user.scoreRestrictedUntil &&
+      user.scoreRestrictedUntil > new Date()
     ) {
       throw new ForbiddenException(
-        `Your account has delayed access due to a low score. You can bid again after ${user.restricted_until.toISOString()}.`,
+        `Your account has delayed access due to a low score. You can bid again after ${user.scoreRestrictedUntil.toISOString()}.`,
       );
     }
   }
@@ -197,11 +197,11 @@ export class ScoreService implements OnModuleInit {
 
     const { status, restrictedUntil } = this.computeRestriction(
       scoreAfter,
-      user.is_banned,
+      user.isBanned,
     );
-    const restrictionChanged = user.restriction_status !== status;
-    user.restriction_status = status;
-    user.restricted_until = restrictedUntil;
+    const restrictionChanged = user.restrictionStatus !== status;
+    user.restrictionStatus = status;
+    user.scoreRestrictedUntil = restrictedUntil;
 
     await user.save();
 
@@ -234,7 +234,7 @@ export class ScoreService implements OnModuleInit {
       this.notificationsService
         .notifyScoreRestriction({
           user_id: user._id.toString(),
-          restriction_status: status,
+          restrictionStatus: status,
           score: scoreAfter,
         })
         .catch(() => null);
@@ -258,10 +258,10 @@ export class ScoreService implements OnModuleInit {
 
     const { status, restrictedUntil } = this.computeRestriction(
       scoreAfter,
-      user.is_banned,
+      user.isBanned,
     );
-    user.restriction_status = status;
-    user.restricted_until = restrictedUntil;
+    user.restrictionStatus = status;
+    user.scoreRestrictedUntil = restrictedUntil;
 
     await user.save();
 
@@ -297,7 +297,7 @@ export class ScoreService implements OnModuleInit {
     const user = await this.userModel
       .findById(userId)
       .select(
-        'full_name role reliability_score professional_score restriction_status restricted_until is_banned ban_reason',
+        'fullName role reliabilityScore professionalScore restrictionStatus scoreRestrictedUntil isBanned banReason',
       );
     if (!user) {
       throw new NotFoundException('User not found');
@@ -340,7 +340,7 @@ export class ScoreService implements OnModuleInit {
     const [data, total] = await Promise.all([
       this.scoreEventModel
         .find(filter)
-        .populate('user_id', 'full_name email role')
+        .populate('user_id', 'fullName email role')
         .populate('deal_id')
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)

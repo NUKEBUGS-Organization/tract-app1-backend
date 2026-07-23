@@ -7,9 +7,14 @@ import {
   Session,
   SessionDocument,
 } from '../../sessions/schemas/session.schema';
-import { User, UserDocument } from '../../users/schemas/user.schema';
+import {
+  User,
+  UserDocument,
+  APP1_ALLOWED_ROLES,
+  Role,
+} from '../../users/schemas/user.schema';
 
-// Only write last_active_at if it's gone stale by this much — avoids a DB
+// Only write lastActiveAt if it's gone stale by this much — avoids a DB
 // write on every single authenticated request while keeping the ghosting /
 // slow-response inactivity checks (see DealsAutomationService) meaningful.
 const ACTIVITY_UPDATE_THROTTLE_MS = 10 * 60 * 1000;
@@ -28,10 +33,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    // Every request checks if this session is still valid
     const session = await this.sessionModel.findOne({
-      session_id: payload.sessionId,
-      is_blacklisted: false,
+      sessionId: payload.sessionId,
+      isBlacklisted: false,
     });
 
     if (!session) {
@@ -40,30 +44,32 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       );
     }
 
-    // Non-blocking, throttled activity heartbeat
+    const user = await this.userModel.findById(payload.sub).lean();
+    if (!user || user.isBanned) {
+      throw new UnauthorizedException();
+    }
+    if (!APP1_ALLOWED_ROLES.includes(user.role as Role)) {
+      throw new UnauthorizedException();
+    }
+
     this.userModel
       .updateOne(
         {
           _id: payload.sub,
           $or: [
-            { last_active_at: null },
+            { lastActiveAt: null },
             {
-              last_active_at: {
+              lastActiveAt: {
                 $lt: new Date(Date.now() - ACTIVITY_UPDATE_THROTTLE_MS),
               },
             },
           ],
         },
-        { $set: { last_active_at: new Date() } },
+        { $set: { lastActiveAt: new Date() } },
       )
       .exec()
       .catch(() => null);
 
-    return {
-      _id: payload.sub,
-      email: payload.email,
-      role: payload.role,
-      sessionId: payload.sessionId,
-    };
+    return { ...user, sessionId: payload.sessionId };
   }
 }

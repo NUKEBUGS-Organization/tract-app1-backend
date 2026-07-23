@@ -212,7 +212,7 @@ export class BidsService {
           .notifyBidCapReached({
             seller_id: seller._id.toString(),
             seller_email: seller.email,
-            seller_name: seller.full_name,
+            seller_name: seller.fullName,
             listing_id: listingId,
             address: listing.address,
           })
@@ -223,12 +223,12 @@ export class BidsService {
           .notifyBidReceived({
             seller_id: seller._id.toString(),
             seller_email: seller.email,
-            seller_name: seller.full_name,
+            seller_name: seller.fullName,
             listing_id: listingId,
             address: listing.address,
             bid_id: (createdBid as any)._id.toString(),
             bid_price: dto.bid_price,
-            bidder_name: bidder.full_name,
+            bidder_name: bidder.fullName,
             bid_count: newBidCount,
           })
           .catch(() => null);
@@ -257,7 +257,7 @@ export class BidsService {
       .populate({
         path: 'bidder_id',
         select:
-          'full_name role reliability_score professional_score deal_count',
+          'fullName role reliabilityScore professionalScore app1_totalDealsClosed',
       })
       .sort({
         net_to_seller: -1,
@@ -269,7 +269,7 @@ export class BidsService {
       .findById(bidId)
       .populate(
         'bidder_id',
-        'full_name email role reliability_score professional_score deal_count',
+        'fullName email role reliabilityScore professionalScore app1_totalDealsClosed',
       )
       .populate('property_id');
 
@@ -348,8 +348,8 @@ export class BidsService {
             .notifyBidSelected({
               buyer_id: buyer._id.toString(),
               buyer_email: buyer.email,
-              buyer_name: buyer.full_name,
-              seller_name: seller.full_name,
+              buyer_name: buyer.fullName,
+              seller_name: seller.fullName,
               listing_id: listingId,
               bid_id: bidId,
               address: listingDoc.address,
@@ -398,7 +398,7 @@ export class BidsService {
         .notifyBidRejected({
           buyer_id: buyer._id.toString(),
           buyer_email: buyer.email,
-          buyer_name: buyer.full_name,
+          buyer_name: buyer.fullName,
           listing_id: listingId,
           bid_id: bidId,
           address: listing.address,

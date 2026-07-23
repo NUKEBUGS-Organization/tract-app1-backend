@@ -98,9 +98,9 @@ export class ContractsService {
     const emdAmount = dto.emd_amount ?? Math.min(1000, bid.bid_price);
 
     const pdfBuffer = await generateContractPdf({
-      sellerName: seller.full_name,
+      sellerName: seller.fullName,
       sellerAddress: `${listing.address}, ${listing.state_code} ${listing.zip_code}`,
-      buyerName: `${buyer.full_name} and/or Assigns`,
+      buyerName: `${buyer.fullName} and/or Assigns`,
       buyerAddress: dto.buyer_address ?? 'On File',
       propertyAddress: listing.address,
       propertyBlock: dto.property_block,
@@ -134,10 +134,10 @@ export class ContractsService {
         {
           role: 'Seller',
           email: seller.email,
-          name: seller.full_name,
+          name: seller.fullName,
           external_id: `${contract._id}:seller`,
           values: {
-            SellerName: seller.full_name,
+            SellerName: seller.fullName,
             PropertyAddress: `${listing.address}, ${listing.state_code} ${listing.zip_code}`,
             PurchasePrice: bid.bid_price,
             EMDAmount: emdAmount,
@@ -147,10 +147,10 @@ export class ContractsService {
         {
           role: 'Buyer',
           email: buyer.email,
-          name: buyer.full_name,
+          name: buyer.fullName,
           external_id: `${contract._id}:buyer`,
           values: {
-            BuyerName: `${buyer.full_name} and/or Assigns`,
+            BuyerName: `${buyer.fullName} and/or Assigns`,
             PropertyAddress: `${listing.address}, ${listing.state_code} ${listing.zip_code}`,
             PurchasePrice: bid.bid_price,
             EMDAmount: emdAmount,
@@ -189,10 +189,10 @@ export class ContractsService {
           .notifyContractReady({
             seller_id: seller._id.toString(),
             seller_email: seller.email,
-            seller_name: seller.full_name,
+            seller_name: seller.fullName,
             buyer_id: buyer._id.toString(),
             buyer_email: buyer.email,
-            buyer_name: buyer.full_name,
+            buyer_name: buyer.fullName,
             contract_id: contract._id.toString(),
             listing_id: contract.property_id.toString(),
             address: listing.address,
@@ -216,8 +216,8 @@ export class ContractsService {
     const contract = await this.contractModel
       .findById(contractId)
       .populate('property_id')
-      .populate('seller_id', 'full_name email')
-      .populate('buyer_id', 'full_name email');
+      .populate('seller_id', 'fullName email')
+      .populate('buyer_id', 'fullName email');
 
     if (!contract) {
       throw new NotFoundException();
@@ -245,8 +245,8 @@ export class ContractsService {
       this.contractModel
         .find(filter)
         .populate('property_id', 'address market_price')
-        .populate('seller_id', 'full_name email')
-        .populate('buyer_id', 'full_name email')
+        .populate('seller_id', 'fullName email')
+        .populate('buyer_id', 'fullName email')
         .sort({
           createdAt: -1,
         })
@@ -499,10 +499,10 @@ export class ContractsService {
           .notifyContractExecuted({
             seller_id: seller._id.toString(),
             seller_email: seller.email,
-            seller_name: seller.full_name,
+            seller_name: seller.fullName,
             buyer_id: buyer._id.toString(),
             buyer_email: buyer.email,
-            buyer_name: buyer.full_name,
+            buyer_name: buyer.fullName,
             contract_id: contractId,
             listing_id: contract.property_id.toString(),
             address: listing.address,
@@ -623,8 +623,8 @@ export class ContractsService {
 
     return this.contractModel
       .find({ property_id: listing._id })
-      .populate('buyer_id', 'full_name email phone')
-      .populate('seller_id', 'full_name email phone')
+      .populate('buyer_id', 'fullName email phone')
+      .populate('seller_id', 'fullName email phone')
       .populate({
         path: 'bid_id',
         select: 'bid_price inspection_period due_diligence_period status',

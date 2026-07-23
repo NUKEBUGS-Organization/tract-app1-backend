@@ -7,11 +7,31 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
 export async function configureApp(app: INestApplication): Promise<void> {
   const configService = app.get(ConfigService);
 
+  const allowedRaw = configService.get<string[]>('app.origins') ?? [];
+  const allowedOrigins = new Set(
+    allowedRaw.map((o) => o.trim().replace(/\/$/, '')).filter(Boolean),
+  );
+
   app.setGlobalPrefix('api/v1');
   app.enableCors({
-    origin: configService.get<string>('app.allowedOrigins')?.split(',') ?? '*',
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    origin: (
+      reqOrigin: string | undefined,
+      callback: (err: Error | null, allow?: boolean | string | RegExp) => void,
+    ) => {
+      if (!reqOrigin) {
+        callback(null, true);
+        return;
+      }
+      const normalized = reqOrigin.trim().replace(/\/$/, '');
+      if (allowedOrigins.has(normalized)) {
+        callback(null, reqOrigin.trim());
+        return;
+      }
+      callback(null, false);
+    },
   });
 
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));

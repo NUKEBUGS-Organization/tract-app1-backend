@@ -521,7 +521,7 @@ export class ListingsService {
         listings.map(async (listing) => {
           const bids = await this.bidModel
             .find({ property_id: listing._id })
-            .populate('bidder_id', 'full_name role reliability_score')
+            .populate('bidder_id', 'fullName role reliabilityScore')
             .select('-deleted_at')
             .sort({ bid_price: -1 })
             .lean();

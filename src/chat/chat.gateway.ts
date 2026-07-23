@@ -11,10 +11,12 @@ import {
 import { Server, Socket } from 'socket.io';
 
 import { ChatService } from './chat.service';
+import { parseCorsOrigins } from '../common/utils/cors-origins';
 
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: parseCorsOrigins(process.env.ALLOWED_ORIGINS, 'ALLOWED_ORIGINS'),
+    credentials: true,
   },
 })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {

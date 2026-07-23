@@ -1,18 +1,19 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsEmail,
-  IsEnum,
+  IsIn,
   IsString,
   IsDateString,
   IsMobilePhone,
+  IsOptional,
   MinLength,
 } from 'class-validator';
-import { Role } from '../../users/schemas/user.schema';
+import { APP1_REGISTER_ROLES, Role } from '../../users/schemas/user.schema';
 
 export class RegisterDto {
   @ApiProperty({ example: 'John Doe' })
   @IsString()
-  full_name: string;
+  fullName: string;
 
   @ApiProperty({ example: 'john@example.com' })
   @IsEmail()
@@ -27,13 +28,19 @@ export class RegisterDto {
   @MinLength(8)
   password: string;
 
-  @ApiProperty({ enum: Role, example: Role.SELLER })
-  @IsEnum(Role)
+  @ApiProperty({
+    enum: APP1_REGISTER_ROLES,
+    example: Role.SELLER,
+    description: 'Public registration roles (admin must be seeded)',
+  })
+  @IsIn(APP1_REGISTER_ROLES, {
+    message: 'Role must be one of: seller, wholesaler, realtor',
+  })
   role: Role;
 
   @ApiProperty({ example: 'TX' })
   @IsString()
-  state_code: string;
+  stateCode: string;
 
   @ApiProperty({ example: '1990-01-15' })
   @IsDateString()
@@ -75,18 +82,24 @@ export class VerifyOtpDto {
 }
 
 export class RefreshTokenDto {
-  @ApiProperty({ example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' })
+  @ApiProperty({
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+    required: false,
+    description:
+      'Optional body fallback for one transition release; prefer httpOnly refreshToken cookie',
+  })
+  @IsOptional()
   @IsString()
-  refresh_token: string;
+  refreshToken?: string;
 }
 
 export class ResetPasswordDto {
   @ApiProperty({ example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' })
   @IsString()
-  reset_token: string;
+  resetToken: string;
 
   @ApiProperty({ example: 'NewStrongPass123!' })
   @IsString()
   @MinLength(8)
-  new_password: string;
+  newPassword: string;
 }

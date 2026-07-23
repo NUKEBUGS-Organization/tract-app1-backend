@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -10,23 +14,23 @@ export class UsersService {
   constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
 
   private readonly excludedFields = {
-    password_hash: 0,
-    otp_code: 0,
-    otp_expires_at: 0,
-    otp_purpose: 0,
-    current_session_id: 0,
-    plaid_access_token: 0,
+    passwordHash: 0,
+    currentSessionId: 0,
+    refreshToken: 0,
     __v: 0,
   };
 
   async findById(id: string): Promise<UserDocument> {
-    const user = await this.userModel.findById(id).select(this.excludedFields).lean(); ;
+    const user = await this.userModel
+      .findById(id)
+      .select(this.excludedFields)
+      .lean();
     if (!user) throw new NotFoundException('User not found');
-    return user;
+    return user as unknown as UserDocument;
   }
 
   async findByEmail(email: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ email });
+    return this.userModel.findOne({ email: email.toLowerCase().trim() });
   }
 
   async findByPhone(phone: string): Promise<UserDocument | null> {
@@ -44,38 +48,43 @@ export class UsersService {
   }
 
   async softDelete(id: string): Promise<{ message: string }> {
-    await this.userModel.findByIdAndUpdate(id, { deleted_at: new Date() });
+    await this.userModel.findByIdAndUpdate(id, { deletedAt: new Date() });
     return { message: 'Account deleted successfully' };
   }
 
   async banUser(id: string, reason: string): Promise<UserDocument> {
-    return this.updateById(id, { is_banned: true, ban_reason: reason });
+    return this.updateById(id, { isBanned: true, banReason: reason });
   }
 
   async unbanUser(id: string): Promise<UserDocument> {
-    return this.updateById(id, { is_banned: false });
+    return this.updateById(id, { isBanned: false, banReason: null });
   }
 
   async updateProfile(id: string, dto: UpdateUserDto): Promise<UserDocument> {
     const updates: Partial<User> = {};
-    if (dto.full_name)  updates.full_name  = dto.full_name;
-    if (dto.state_code) updates.state_code = dto.state_code;
-    if (dto.dob)        updates.dob        = new Date(dto.dob);
-  
+    if (dto.fullName) updates.fullName = dto.fullName;
+    if (dto.stateCode) updates.stateCode = dto.stateCode.toUpperCase().trim();
+    if (dto.dob) updates.dob = new Date(dto.dob);
+
     return this.updateById(id, updates);
   }
-  
-  async changePassword(id: string, dto: ChangePasswordDto): Promise<{ message: string }> {
-    // Fetch the raw user (with password_hash) — bypass excludedFields
-    const user = await this.userModel.findById(id).select('+password_hash').lean();
+
+  async changePassword(
+    id: string,
+    dto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
+    const user = await this.userModel.findById(id).select('+passwordHash').lean();
     if (!user) throw new NotFoundException('User not found');
-  
-    const isMatch = await bcrypt.compare(dto.current_password, user.password_hash);
+
+    const isMatch = await bcrypt.compare(
+      dto.currentPassword,
+      (user as any).passwordHash,
+    );
     if (!isMatch) throw new BadRequestException('Current password is incorrect');
-  
-    const newHash = await bcrypt.hash(dto.new_password, 12);
-    await this.userModel.findByIdAndUpdate(id, { password_hash: newHash });
-  
+
+    const newHash = await bcrypt.hash(dto.newPassword, 12);
+    await this.userModel.findByIdAndUpdate(id, { passwordHash: newHash });
+
     return { message: 'Password changed successfully' };
   }
 }

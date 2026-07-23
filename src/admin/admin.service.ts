@@ -79,7 +79,7 @@ export class AdminService {
         this.dealModel.countDocuments(),
         this.contractModel.countDocuments(),
         this.userModel.countDocuments({
-          kyc_status: KycStatus.PENDING,
+          kycStatus: KycStatus.PENDING,
         }),
         this.messageModel.countDocuments({
           flagged: true,
@@ -110,7 +110,7 @@ export class AdminService {
       this.userModel
         .find(filter)
         .select(
-          '-password_hash -otp_code -otp_expires_at -otp_purpose -current_session_id -deleted_at',
+          '-passwordHash -currentSessionId -deletedAt',
         )
         .skip((page - 1) * limit)
         .limit(limit)
@@ -131,7 +131,7 @@ export class AdminService {
   }
 
   async getUser(id: string) {
-    const user = await this.userModel.findById(id).select('-password_hash');
+    const user = await this.userModel.findById(id).select('-passwordHash');
 
     if (!user) {
       throw new NotFoundException('User not found');
@@ -147,8 +147,8 @@ export class AdminService {
       throw new NotFoundException('User not found');
     }
 
-    user.is_banned = true;
-    user.ban_reason = reason;
+    user.isBanned = true;
+    user.banReason = reason;
 
     await user.save();
 
@@ -164,8 +164,8 @@ export class AdminService {
       throw new NotFoundException('User not found');
     }
 
-    user.is_banned = false;
-    user.ban_reason = '';
+    user.isBanned = false;
+    user.banReason = '';
 
     await user.save();
 
@@ -176,7 +176,7 @@ export class AdminService {
 
   async pendingKyc() {
     return this.userModel.find({
-      kyc_status: KycStatus.PENDING,
+      kycStatus: KycStatus.PENDING,
     });
   }
 
@@ -187,7 +187,7 @@ export class AdminService {
       throw new NotFoundException('User not found');
     }
 
-    user.kyc_status = KycStatus.VERIFIED;
+    user.kycStatus = KycStatus.APPROVED;
 
     await user.save();
 
@@ -203,7 +203,7 @@ export class AdminService {
       throw new NotFoundException('User not found');
     }
 
-    user.kyc_status = KycStatus.REJECTED;
+    user.kycStatus = KycStatus.REJECTED;
 
     await user.save();
 
@@ -233,7 +233,7 @@ export class AdminService {
     const [data, total] = await Promise.all([
       this.verificationModel
         .find(filter)
-        .populate('user_id', 'full_name email role')
+        .populate('user_id', 'fullName email role')
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit),
@@ -263,7 +263,7 @@ export class AdminService {
   async getVerification(id: string) {
     const verification = await this.verificationModel
       .findById(id)
-      .populate('user_id', 'full_name email role');
+      .populate('user_id', 'fullName email role');
 
     if (!verification) {
       throw new NotFoundException('Verification not found');
@@ -321,7 +321,7 @@ export class AdminService {
     const [data, total] = await Promise.all([
       this.listingModel
         .find(filter)
-        .populate('seller_id', 'full_name email phone')
+        .populate('seller_id', 'fullName email phone')
         .sort({
           createdAt: -1,
         })
@@ -349,7 +349,7 @@ export class AdminService {
     const [data, total] = await Promise.all([
       this.listingModel
         .find()
-        .populate('seller_id', 'full_name email')
+        .populate('seller_id', 'fullName email')
         .skip((page - 1) * limit)
         .limit(limit)
         .sort({
@@ -410,7 +410,7 @@ export class AdminService {
           .notifyListingLive({
             seller_id: seller._id.toString(),
             seller_email: seller.email,
-            seller_name: seller.full_name,
+            seller_name: seller.fullName,
             listing_id: listingId,
             address: listing.address,
           })
@@ -451,7 +451,7 @@ export class AdminService {
         .notifyListingNeedsInfo({
           seller_id: seller._id.toString(),
           seller_email: seller.email,
-          seller_name: seller.full_name,
+          seller_name: seller.fullName,
           listing_id: listingId,
           address: listing.address,
           reason,
@@ -520,7 +520,7 @@ export class AdminService {
     const [data, total] = await Promise.all([
       this.bidModel
         .find()
-        .populate('bidder_id', 'full_name email')
+        .populate('bidder_id', 'fullName email')
         .populate('property_id')
         .skip((page - 1) * limit)
         .limit(limit)
@@ -545,7 +545,7 @@ export class AdminService {
   async getBid(id: string) {
     const bid = await this.bidModel
       .findById(id)
-      .populate('bidder_id', 'full_name email');
+      .populate('bidder_id', 'fullName email');
 
     if (!bid) {
       throw new NotFoundException('Bid not found');
@@ -562,8 +562,8 @@ export class AdminService {
       this.contractModel
         .find()
         .populate('property_id')
-        .populate('seller_id', 'full_name')
-        .populate('buyer_id', 'full_name')
+        .populate('seller_id', 'fullName')
+        .populate('buyer_id', 'fullName')
         .skip((page - 1) * limit)
         .limit(limit)
         .sort({
@@ -602,8 +602,8 @@ export class AdminService {
       this.dealModel
         .find()
         .populate('listing_id')
-        .populate('seller_id', 'full_name')
-        .populate('buyer_id', 'full_name')
+        .populate('seller_id', 'fullName')
+        .populate('buyer_id', 'fullName')
         .skip((page - 1) * limit)
         .limit(limit)
         .sort({
@@ -661,7 +661,7 @@ export class AdminService {
     const [data, total] = await Promise.all([
       this.messageModel
         .find(filter)
-        .populate('sender_id', 'full_name email')
+        .populate('sender_id', 'fullName email')
         .populate('room_id')
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
@@ -688,8 +688,8 @@ export class AdminService {
     const [data, total] = await Promise.all([
       this.roomModel
         .find()
-        .populate('seller_id', 'full_name email')
-        .populate('buyer_id', 'full_name email')
+        .populate('seller_id', 'fullName email')
+        .populate('buyer_id', 'fullName email')
         .populate('deal_id')
         .sort({
           updatedAt: -1,
@@ -723,7 +723,7 @@ export class AdminService {
     const [data, total] = await Promise.all([
       this.messageModel
         .find(filter)
-        .populate('sender_id', 'full_name email')
+        .populate('sender_id', 'fullName email')
         .sort({
           createdAt: -1,
         })

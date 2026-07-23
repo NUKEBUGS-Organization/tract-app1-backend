@@ -10,11 +10,20 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
-import { User, UserDocument } from '../users/schemas/user.schema';
+import {
+  User,
+  UserDocument,
+  APP1_ALLOWED_ROLES,
+  Role,
+  KycStatus,
+} from '../users/schemas/user.schema';
 import { Session, SessionDocument } from '../sessions/schemas/session.schema';
 import { MailService } from '../mail/mail.service';
 import { SmsService } from '../sms/sms.service';
+import { OtpService } from './otp.service';
 import { RegisterDto } from './dto/auth.dto';
+
+const BCRYPT_ROUNDS = 12;
 
 @Injectable()
 export class AuthService {
@@ -24,22 +33,37 @@ export class AuthService {
     private jwtService: JwtService,
     private mailService: MailService,
     private smsService: SmsService,
+    private otpService: OtpService,
   ) {}
 
   async register(dto: RegisterDto) {
     try {
+      const email = dto.email.toLowerCase().trim();
       const exists = await this.userModel.findOne({
-        $or: [{ email: dto.email }, { phone: dto.phone }],
+        $or: [{ email }, { phone: dto.phone }],
       });
       if (exists) {
         throw new BadRequestException('Email or phone already registered');
       }
 
-      const password_hash = await bcrypt.hash(dto.password, 10);
+      if (!APP1_ALLOWED_ROLES.includes(dto.role)) {
+        throw new BadRequestException('Role is not allowed on App 1');
+      }
 
-      await this.userModel.create({ ...dto, password_hash });
+      const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
 
-      await this.sendOtp(dto.email, 'login');
+      await this.userModel.create({
+        fullName: dto.fullName.trim(),
+        email,
+        phone: dto.phone,
+        passwordHash,
+        role: dto.role,
+        stateCode: dto.stateCode.toUpperCase().trim(),
+        dob: new Date(dto.dob),
+        kycStatus: KycStatus.PENDING,
+      });
+
+      await this.sendOtp(email, 'login');
 
       return {
         message:
@@ -60,27 +84,22 @@ export class AuthService {
 
   async sendOtp(email: string, purpose: 'login' | 'forgot_password') {
     try {
-      const user = await this.userModel.findOne({ email });
+      const normalized = email.toLowerCase().trim();
+      const user = await this.userModel.findOne({ email: normalized });
 
-      // For security: don't reveal if email exists for forgot_password
       if (!user && purpose === 'forgot_password') {
         return { message: 'If that email exists, an OTP was sent.' };
       }
       if (!user) throw new BadRequestException('User not found');
-      if (user.is_banned) {
-        throw new ForbiddenException('Account is banned: ' + user.ban_reason);
+      if (user.isBanned) {
+        throw new ForbiddenException(
+          'Account is banned: ' + (user.banReason ?? ''),
+        );
       }
 
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const otp_code = await bcrypt.hash(otp, 10);
+      const otp = this.otpService.generate();
+      await this.otpService.storeEmailOtp(normalized, purpose, otp);
 
-      await this.userModel.findByIdAndUpdate(user._id, {
-        otp_code,
-        otp_purpose: purpose,
-        otp_expires_at: new Date(Date.now() + 10 * 60 * 1000), // 10 min
-      });
-
-      // Send to both phone AND email
       await Promise.all([
         this.mailService.sendOtp(user.email, otp, purpose),
         // this.smsService.sendOtp(user.phone, otp, purpose),
@@ -100,23 +119,27 @@ export class AuthService {
     }
   }
 
-  // ─── LOGIN (step 1: validate password, step 2: trigger OTP) ──────────────
   async login(email: string, password: string) {
     try {
+      const normalized = email.toLowerCase().trim();
       const user = await this.userModel
-        .findOne({ email })
-        .select('+password_hash');
+        .findOne({ email: normalized })
+        .select('+passwordHash');
 
       if (!user) throw new UnauthorizedException('Invalid credentials');
-      if (user.is_banned) {
-        throw new ForbiddenException('Account is banned: ' + user.ban_reason);
+      if (user.isBanned) {
+        throw new ForbiddenException(
+          'Account is banned: ' + (user.banReason ?? ''),
+        );
+      }
+      if (!APP1_ALLOWED_ROLES.includes(user.role as Role)) {
+        throw new ForbiddenException('This account cannot access App 1');
       }
 
-      const valid = await bcrypt.compare(password, user.password_hash);
+      const valid = await bcrypt.compare(password, user.passwordHash);
       if (!valid) throw new UnauthorizedException('Invalid credentials');
 
-      // Trigger 2FA OTP
-      await this.sendOtp(email, 'login');
+      await this.sendOtp(normalized, 'login');
 
       return { message: '2FA OTP sent. Please verify to complete login.' };
     } catch (error) {
@@ -134,39 +157,41 @@ export class AuthService {
 
   async verifyOtp(email: string, otp: string, purpose: string) {
     try {
-      const user = await this.userModel.findOne({ email });
-      if (!user || !user.otp_code) {
+      const normalized = email.toLowerCase().trim();
+      const user = await this.userModel.findOne({ email: normalized });
+      if (!user) {
         throw new BadRequestException('Invalid request');
       }
 
-      if (user.otp_purpose !== purpose) {
-        throw new BadRequestException('OTP purpose mismatch');
-      }
-      if (new Date() > user.otp_expires_at) {
-        throw new BadRequestException('OTP has expired');
+      const allowed = await this.otpService.checkAndIncrementAttempts(
+        normalized,
+        purpose,
+      );
+      if (!allowed) {
+        throw new BadRequestException('Too many OTP attempts. Try again later.');
       }
 
-      const valid = await bcrypt.compare(otp, user.otp_code);
+      const valid = await this.otpService.verifyEmailOtp(
+        normalized,
+        purpose,
+        otp,
+      );
       if (!valid) throw new BadRequestException('Invalid OTP');
 
-      // Clear OTP
+      await this.otpService.clearAttempts(normalized, purpose);
       await this.userModel.findByIdAndUpdate(user._id, {
-        otp_code: null,
-        otp_expires_at: null,
-        otp_purpose: null,
-        last_active_at: new Date(),
+        lastActiveAt: new Date(),
       });
 
       if (purpose === 'login') {
         return this.createSession(user);
       }
 
-      // For forgot_password: return a short-lived reset token instead
       const resetToken = this.jwtService.sign(
         { sub: user._id, purpose: 'reset' },
         { secret: process.env.JWT_SECRET, expiresIn: '10m' },
       );
-      return { reset_token: resetToken };
+      return { resetToken };
     } catch (error) {
       if (
         error instanceof BadRequestException ||
@@ -192,31 +217,34 @@ export class AuthService {
     }
 
     try {
-      // Find session by session_id in payload, check not blacklisted
       const session = await this.sessionModel.findOne({
-        session_id: payload.sessionId,
-        is_blacklisted: false,
+        sessionId: payload.sessionId,
+        isBlacklisted: false,
       });
       if (!session) throw new UnauthorizedException('Session revoked');
 
-      // Verify refresh token hash matches
       const hashMatch = await bcrypt.compare(
         refreshToken,
-        session.refresh_token_hash,
+        session.refreshTokenHash,
       );
       if (!hashMatch) throw new UnauthorizedException('Invalid refresh token');
 
       const user = await this.userModel.findById(payload.sub);
       if (!user) throw new UnauthorizedException('User not found');
+      if (!APP1_ALLOWED_ROLES.includes(user.role as Role)) {
+        throw new ForbiddenException('This account cannot access App 1');
+      }
 
-      // Rotate: blacklist old session, create new
       await this.sessionModel.findByIdAndUpdate(session._id, {
-        is_blacklisted: true,
+        isBlacklisted: true,
       });
 
       return this.createSession(user);
     } catch (error) {
-      if (error instanceof UnauthorizedException) {
+      if (
+        error instanceof UnauthorizedException ||
+        error instanceof ForbiddenException
+      ) {
         throw error;
       }
       throw new InternalServerErrorException(
@@ -228,8 +256,8 @@ export class AuthService {
   async logout(sessionId: string) {
     try {
       await this.sessionModel.updateOne(
-        { session_id: sessionId },
-        { is_blacklisted: true },
+        { sessionId: sessionId },
+        { isBlacklisted: true },
       );
       return { message: 'Logged out successfully' };
     } catch {
@@ -239,11 +267,11 @@ export class AuthService {
     }
   }
 
-  async resetPassword(reset_token: string, new_password: string) {
+  async resetPassword(resetToken: string, newPassword: string) {
     let payload: any;
 
     try {
-      payload = this.jwtService.verify(reset_token, {
+      payload = this.jwtService.verify(resetToken, {
         secret: process.env.JWT_SECRET,
       });
     } catch {
@@ -255,17 +283,16 @@ export class AuthService {
     }
 
     try {
-      const hashed = await bcrypt.hash(new_password, 10);
+      const hashed = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
 
       await this.userModel.findByIdAndUpdate(payload.sub, {
-        password_hash: hashed,
-        current_session_id: null,
+        passwordHash: hashed,
+        currentSessionId: null,
       });
 
-      // Blacklist all sessions — force re-login everywhere
       await this.sessionModel.updateMany(
         { userId: payload.sub },
-        { is_blacklisted: true },
+        { isBlacklisted: true },
       );
 
       return { message: 'Password reset successful. Please login again.' };
@@ -279,84 +306,93 @@ export class AuthService {
     }
   }
 
-  // ─── KYC: Initiate Jumio Session ─────────────────────────────────────────
   async initiateKyc(userId: string) {
-     try {
+    try {
       const clientId = process.env.JUMIO_API_KEY;
       const clientSecret = process.env.JUMIO_API_SECRET;
-  
+
       if (!clientId || !clientSecret) {
-        throw new InternalServerErrorException('KYC configuration credentials missing');
+        throw new InternalServerErrorException(
+          'KYC configuration credentials missing',
+        );
       }
-  
-      // Node-safe Base64 encoding
-      const authString = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-  
-      // 1. Fetch OAuth Token
+
+      const apiPublicUrl = process.env.API_PUBLIC_URL?.trim().replace(/\/$/, '');
+      if (!apiPublicUrl) {
+        throw new InternalServerErrorException(
+          'API_PUBLIC_URL is required for Jumio KYC callback',
+        );
+      }
+
+      const authString = Buffer.from(`${clientId}:${clientSecret}`).toString(
+        'base64',
+      );
+
       const jumioResponse = await fetch(
         'https://auth.sandbox.amer-1.jumio.ai/oauth2/token',
         {
           method: 'POST',
           headers: {
-            'Accept': 'application/json',
+            Accept: 'application/json',
             'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': `Basic ${authString}`
+            Authorization: `Basic ${authString}`,
           },
-          body: 'grant_type=client_credentials'
+          body: 'grant_type=client_credentials',
         },
       );
-  
+
       if (!jumioResponse.ok) {
         throw new InternalServerErrorException(
           `Jumio Auth failed: ${jumioResponse.statusText}`,
         );
       }
-  
+
       const data = await jumioResponse.json();
-  
-      // FIXED: Use snake_case as returned by OAuth2 standards
+
       if (!data.access_token) {
         throw new InternalServerErrorException('No Access Token found');
       }
-  
-      // 2. Create Account Session
+
+      await this.userModel.findByIdAndUpdate(userId, {
+        kycStatus: KycStatus.IN_PROGRESS,
+      });
+
       const sessionResponse = await fetch(
         'https://account.sandbox.amer-1.jumio.ai/api/v1/accounts',
         {
           method: 'POST',
           headers: {
-            'Accept': 'application/json',
+            Accept: 'application/json',
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${data.access_token}` // FIXED: token variable case
+            Authorization: `Bearer ${data.access_token}`,
           },
           body: JSON.stringify({
             customerInternalReference: userId,
-            callbackUrl : "https://tract-app1-backend.onrender.com", // replace with render url
-            workflowDefinition: { 
-              key: 10547 
-            }
-          })
+            callbackUrl: apiPublicUrl,
+            workflowDefinition: {
+              key: 10547,
+            },
+          }),
         },
       );
-  
-      // ADDED: Error validation for the account creation endpoint
+
       if (!sessionResponse.ok) {
         const errBody = await sessionResponse.json().catch(() => ({}));
         throw new InternalServerErrorException(
           `Jumio Session failed: ${sessionResponse.statusText}. ${JSON.stringify(errBody)}`,
         );
       }
-  
+
       const sessionData = await sessionResponse.json();
-      
-      // ADDED: Optional chaining protection against unexpected schema modifications
-      const reactSdkToken = sessionData?.sdk?.token; 
-  
+      const reactSdkToken = sessionData?.sdk?.token;
+
       if (!reactSdkToken) {
-        throw new InternalServerErrorException('SDK token missing from Jumio response');
+        throw new InternalServerErrorException(
+          'SDK token missing from Jumio response',
+        );
       }
-  
-      return { kyc_access_token: reactSdkToken };
+
+      return { kycAccessToken: reactSdkToken };
     } catch (error) {
       if (error instanceof InternalServerErrorException) {
         throw error;
@@ -366,49 +402,49 @@ export class AuthService {
       );
     }
   }
-  
 
   async handleKycWebhook(payload: any) {
     try {
       const userId = payload?.account?.customerInternalReference;
-      const workflowStatus = payload?.workflow?.status; 
+      const workflowStatus = payload?.workflow?.status;
 
       if (!userId) {
-        throw new BadRequestException('Missing customerId in KYC webhook payload');
+        throw new BadRequestException(
+          'Missing customerId in KYC webhook payload',
+        );
       }
 
-      let kyc_status: 'verified' | 'rejected' = 'rejected';
-      if (workflowStatus === 'PASSED') {
-        kyc_status = 'verified';
-      }
+      const kycStatus =
+        workflowStatus === 'PASSED' ? KycStatus.APPROVED : KycStatus.REJECTED;
 
-      await this.userModel.findByIdAndUpdate(userId, { kyc_status });
+      await this.userModel.findByIdAndUpdate(userId, {
+        kycStatus,
+        kycVerifiedAt: kycStatus === KycStatus.APPROVED ? new Date() : null,
+        kycProvider: 'jumio',
+      });
 
       return { received: true };
     } catch (error) {
       if (error instanceof BadRequestException) {
         throw error;
       }
-      throw new InternalServerErrorException(
-        'Failed to process KYC webhook.',
-      );
+      throw new InternalServerErrorException('Failed to process KYC webhook.');
     }
   }
 
   private async createSession(user: UserDocument) {
     try {
-      // ✦ SINGLE-SESSION: blacklist all previous active sessions
       await this.sessionModel.updateMany(
-        { userId: user._id, is_blacklisted: false },
-        { is_blacklisted: true },
+        { userId: user._id, isBlacklisted: false },
+        { isBlacklisted: true },
       );
 
-      const session_id = uuidv4();
+      const sessionId = uuidv4();
       const payload = {
-        sub: user._id,
+        sub: user._id.toString(),
         email: user.email,
         role: user.role,
-        sessionId: session_id,
+        sessionId,
       };
 
       const [accessToken, refreshToken] = await Promise.all([
@@ -422,21 +458,36 @@ export class AuthService {
         }),
       ]);
 
-      // Store hashed refresh token (never raw)
-      const refresh_token_hash = await bcrypt.hash(refreshToken, 10);
+      const refreshTokenHash = await bcrypt.hash(refreshToken, BCRYPT_ROUNDS);
 
       await this.sessionModel.create({
         userId: user._id,
-        session_id,
-        refresh_token_hash,
-        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        sessionId,
+        refreshTokenHash,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       });
 
       await this.userModel.findByIdAndUpdate(user._id, {
-        current_session_id: session_id,
+        currentSessionId: sessionId,
       });
 
-      return { access_token: accessToken, refresh_token: refreshToken };
+      return {
+        accessToken,
+        refreshToken,
+        user: {
+          id: user._id.toString(),
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+          fullName: user.fullName,
+          stateCode: user.stateCode,
+          kycStatus: user.kycStatus ?? KycStatus.PENDING,
+          bankVerified: user.bankVerified ?? false,
+          reliabilityScore: user.reliabilityScore,
+          professionalScore: user.professionalScore,
+          isBanned: user.isBanned,
+        },
+      };
     } catch {
       throw new InternalServerErrorException(
         'Session creation failed. Please try again.',

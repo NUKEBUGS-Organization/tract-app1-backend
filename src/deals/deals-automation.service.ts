@@ -122,7 +122,7 @@ export class DealsAutomationService {
   async checkInactivity() {
     const deals = await this.dealModel
       .find({ status: { $in: OPEN_DEAL_STATUSES } })
-      .populate('buyer_id', 'role last_active_at')
+      .populate('buyer_id', 'role lastActiveAt')
       .limit(BATCH_LIMIT);
 
     const now = Date.now();
@@ -144,8 +144,8 @@ export class DealsAutomationService {
 
       if (!eventType || thresholdHours === null) continue;
 
-      const lastActiveMs = buyer.last_active_at
-        ? new Date(buyer.last_active_at).getTime()
+      const lastActiveMs = buyer.lastActiveAt
+        ? new Date(buyer.lastActiveAt).getTime()
         : 0; // never active — treat as maximally inactive
       const inactiveHours = (now - lastActiveMs) / (60 * 60 * 1000);
 

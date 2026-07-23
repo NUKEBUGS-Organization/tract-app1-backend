@@ -85,8 +85,8 @@ export class ChatService {
           },
         ],
       })
-      .populate('seller_id', 'full_name email')
-      .populate('buyer_id', 'full_name email')
+      .populate('seller_id', 'fullName email')
+      .populate('buyer_id', 'fullName email')
       .populate('deal_id')
       .sort({
         updatedAt: -1,
@@ -124,7 +124,7 @@ export class ChatService {
       .find({
         room_id: room._id,
       })
-      .populate('sender_id', 'full_name')
+      .populate('sender_id', 'fullName')
       .sort({
         createdAt: 1,
       });
@@ -167,7 +167,7 @@ export class ChatService {
 
     return this.messageModel
       .findById(message._id)
-      .populate('sender_id', 'full_name');
+      .populate('sender_id', 'fullName');
   }
 
   /**
@@ -186,8 +186,8 @@ export class ChatService {
 
     // Get sender and recipient info
     const [sender, recipient, deal] = await Promise.all([
-      this.userModel.findById(senderId).select('full_name').lean(),
-      this.userModel.findById(recipientId).select('full_name email').lean(),
+      this.userModel.findById(senderId).select('fullName').lean(),
+      this.userModel.findById(recipientId).select('fullName email').lean(),
       this.dealModel
         .findById(room.deal_id)
         .select('listing_id')
@@ -209,8 +209,8 @@ export class ChatService {
     await this.notificationsService.notifyNewChatMessage({
       recipient_id: recipientId,
       recipient_email: recipient.email,
-      recipient_name: recipient.full_name,
-      sender_name: sender.full_name,
+      recipient_name: recipient.fullName,
+      sender_name: sender.fullName,
       deal_id: room.deal_id.toString(),
       room_id: room._id.toString(),
       message_preview: messagePreview,
@@ -252,7 +252,7 @@ export class ChatService {
       .find({
         flagged: true,
       })
-      .populate('sender_id', 'full_name email')
+      .populate('sender_id', 'fullName email')
       .populate('room_id')
       .sort({
         createdAt: -1,
