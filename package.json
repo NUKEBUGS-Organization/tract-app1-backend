@@ -44,6 +44,7 @@
     "class-validator": "^0.15.1",
     "cloudinary": "^2.10.0",
     "cookie-parser": "^1.4.7",
+    "dotenv": "^17.4.2",
     "handlebars": "^4.7.9",
     "hbs": "^4.2.1",
     "mongoose": "^9.6.2",

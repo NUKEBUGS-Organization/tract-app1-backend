@@ -15,7 +15,24 @@ import { parseCorsOrigins } from '../common/utils/cors-origins';
 
 @WebSocketGateway({
   cors: {
-    origin: parseCorsOrigins(process.env.ALLOWED_ORIGINS, 'ALLOWED_ORIGINS'),
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
+      try {
+        const allowed = new Set(
+          parseCorsOrigins(process.env.ALLOWED_ORIGINS, 'ALLOWED_ORIGINS'),
+        );
+        if (!origin) {
+          callback(null, true);
+          return;
+        }
+        const normalized = origin.trim().replace(/\/$/, '');
+        callback(null, allowed.has(normalized));
+      } catch (err) {
+        callback(err instanceof Error ? err : new Error(String(err)));
+      }
+    },
     credentials: true,
   },
 })

@@ -31,6 +31,29 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { VerificationsService } from '../verifications/verifications.service';
 import { ScoreService } from '../score/score.service';
 
+function buildListingAddress(address: string, stateCode: string): string {
+  const trimmed = (address ?? '').trim().replace(/,$/, '');
+  const code = (stateCode ?? '').trim();
+  if (!trimmed) return code;
+  if (!code) return trimmed;
+
+  const upperAddr = trimmed.toUpperCase();
+  const upperCode = code.toUpperCase();
+
+  // Ends with state (e.g. "55 mainland, TX")
+  if (upperAddr.endsWith(upperCode)) {
+    return trimmed;
+  }
+
+  // State already embedded mid-string (e.g. "200 Park Ave, New York, NY 10166, USA")
+  const escaped = upperCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (new RegExp(`(?:^|[,\\s])${escaped}(?:$|[,\\s])`).test(upperAddr)) {
+    return trimmed;
+  }
+
+  return `${trimmed}, ${code}`;
+}
+
 @Injectable()
 export class BidsService {
   constructor(
@@ -423,6 +446,83 @@ export class BidsService {
       .sort({
         createdAt: -1,
       });
+  }
+
+  async getBidsByUserInternal(userId: string) {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid userId');
+    }
+
+    const bids = await this.bidModel
+      .find({
+        bidder_id: new Types.ObjectId(userId),
+        deleted_at: null,
+        status: { $ne: BidStatus.DELETED },
+      })
+      .populate({
+        path: 'property_id',
+        select: 'address state_code market_price status property_type',
+      })
+      .populate({
+        path: 'bidder_id',
+        select: 'role',
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return bids.map((bid) => {
+      const listing = bid.property_id as
+        | {
+            _id?: Types.ObjectId;
+            address?: string;
+            state_code?: string;
+          }
+        | Types.ObjectId
+        | null;
+
+      const bidder = bid.bidder_id as
+        | { role?: Role }
+        | Types.ObjectId
+        | null;
+
+      const listingDoc =
+        listing && typeof listing === 'object' && 'address' in listing
+          ? listing
+          : null;
+      const bidderDoc =
+        bidder && typeof bidder === 'object' && 'role' in bidder
+          ? bidder
+          : null;
+
+      const address = listingDoc?.address ?? '';
+      const stateCode = listingDoc?.state_code ?? '';
+      const listingId =
+        listingDoc?._id?.toString() ??
+        (listing instanceof Types.ObjectId
+          ? listing.toString()
+          : String(bid.property_id ?? ''));
+
+      const submitted =
+        bid.submitted_at instanceof Date
+          ? bid.submitted_at
+          : bid.submitted_at
+            ? new Date(bid.submitted_at)
+            : null;
+
+      const role: 'wholesaler' | 'realtor' =
+        bidderDoc?.role === Role.REALTOR ? 'realtor' : 'wholesaler';
+
+      return {
+        sourceApp: 'app1' as const,
+        bidId: String(bid._id),
+        listingId,
+        listingAddress: buildListingAddress(address, stateCode),
+        bidPrice: bid.bid_price,
+        status: bid.status,
+        submittedAt: submitted ? submitted.toISOString() : '',
+        role,
+      };
+    });
   }
 
   async deleteBid(bidId: string, userId: string) {

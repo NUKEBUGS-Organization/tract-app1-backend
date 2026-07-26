@@ -8,6 +8,7 @@ import { Listing, ListingSchema } from '../listings/schemas/listing.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
 
 import { BidsController } from './bids.controller';
+import { InternalBidsController } from './internal-bids.controller';
 import { BidsService } from './bids.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { VerificationsModule } from '../verifications/verifications.module';
@@ -33,7 +34,7 @@ import { ScoreModule } from '../score/score.module';
     VerificationsModule,
     ScoreModule,
   ],
-  controllers: [BidsController],
+  controllers: [BidsController, InternalBidsController],
   providers: [BidsService],
   exports: [BidsService],
 })

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import './dns-preset';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
