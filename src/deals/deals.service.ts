@@ -31,6 +31,7 @@ import { ScoreService } from '../score/score.service';
 import { ScoreEventType } from '../score/schemas/score-event.schema';
 import { KillSwitchReason } from './dto/trigger-kill-switch.dto';
 import { buildListingAddress } from '../common/utils/listing-address';
+import { App2ListingsService } from '../app2-listings/app2-listings.service';
 
 @Injectable()
 export class DealsService {
@@ -58,6 +59,7 @@ export class DealsService {
     private readonly chatService: ChatService,
     private readonly notificationsService: NotificationsService,
     private readonly scoreService: ScoreService,
+    private readonly app2ListingsService: App2ListingsService,
   ) {}
 
   // Helper method to get deal participants
@@ -171,7 +173,7 @@ export class DealsService {
   }
 
   async getMyDeals(userId: string) {
-    return this.dealModel
+    const deals = await this.dealModel
       .find({
         $or: [
           {
@@ -186,7 +188,25 @@ export class DealsService {
       .populate('contract_id')
       .sort({
         createdAt: -1,
-      });
+      })
+      .lean();
+
+    return Promise.all(
+      deals.map(async (deal) => {
+        if (deal.status !== DealStatus.CLOSED) {
+          return deal;
+        }
+
+        const app2Status = await this.app2ListingsService.getApp2ListingStatus(
+          String(deal._id),
+        );
+
+        return {
+          ...deal,
+          app2Status,
+        };
+      }),
+    );
   }
 
   async uploadMarketingProof(
@@ -736,6 +756,7 @@ export class DealsService {
             _id?: Types.ObjectId;
             address?: string;
             state_code?: string;
+            zip_code?: string;
           }
         | Types.ObjectId
         | null;
@@ -775,6 +796,10 @@ export class DealsService {
 
       const address = listingDoc?.address ?? '';
       const stateCode = listingDoc?.state_code ?? '';
+      const zipCode =
+        listingDoc && 'zip_code' in listingDoc
+          ? String(listingDoc.zip_code ?? '')
+          : '';
       const listingId =
         listingDoc?._id?.toString() ??
         (listing instanceof Types.ObjectId
@@ -796,6 +821,9 @@ export class DealsService {
         dealId: String(deal._id),
         listingId,
         listingAddress: buildListingAddress(address, stateCode),
+        address,
+        stateCode,
+        zipCode,
         purchasePrice: Number(bid?.bid_price ?? 0),
         closedAt: closed ? closed.toISOString() : '',
         role,

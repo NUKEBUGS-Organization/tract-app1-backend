@@ -15,6 +15,7 @@ import { DealsService } from './deals.service';
 import { DealsAutomationService } from './deals-automation.service';
 import { DealsController } from './deals.controller';
 import { InternalDealsController } from './internal-deals.controller';
+import { App2ListingsModule } from '../app2-listings/app2-listings.module';
 import { ChatModule } from '../chat/chat.module';
 import { NotificationsModule } from 'src/notifications/notifications.module';
 import { ScoreModule } from '../score/score.module';
@@ -43,6 +44,7 @@ import { ScoreModule } from '../score/score.module';
     ]),
     NotificationsModule,
     ScoreModule,
+    App2ListingsModule,
     forwardRef(() => ChatModule),
   ],
   controllers: [DealsController, InternalDealsController],
