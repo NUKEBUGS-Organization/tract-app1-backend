@@ -20,7 +20,10 @@ export class Deal {
     type: Types.ObjectId,
     ref: 'Contract',
     required: true,
+    // Sparse: App2 deals share this collection and omit contract_id.
+    // Non-sparse unique only allows one null and blocks App2 createDeal (E11000).
     unique: true,
+    sparse: true,
   })
   contract_id: Types.ObjectId;
 
