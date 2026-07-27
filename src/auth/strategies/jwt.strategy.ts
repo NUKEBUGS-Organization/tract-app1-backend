@@ -70,6 +70,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       .exec()
       .catch(() => null);
 
-    return { ...user, sessionId: payload.sessionId };
+    // Normalize _id to string so ownership checks like
+    // listing.seller_id.toString() !== sellerId keep working.
+    // .lean() leaves _id as ObjectId; strict !== against that always fails.
+    return {
+      ...user,
+      _id: user._id.toString(),
+      sessionId: payload.sessionId,
+    };
   }
 }
