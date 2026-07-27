@@ -235,6 +235,60 @@ export class DealsService {
     };
   }
 
+  /**
+   * Called by Buyer Tract when an App2 deal linked via listing.app1DealId
+   * reaches funded_closed — keeps Seller Tract partner tracker in sync.
+   */
+  async markClosedFromApp2Internal(dealId: string): Promise<{
+    dealId: string;
+    status: string;
+    alreadyClosed?: boolean;
+    skipped?: boolean;
+  }> {
+    if (!Types.ObjectId.isValid(dealId)) {
+      throw new BadRequestException('Invalid dealId');
+    }
+
+    const deal = await this.dealModel.findById(dealId);
+    if (!deal) {
+      throw new NotFoundException('Deal not found');
+    }
+
+    const lean = deal.toObject() as unknown as Record<string, unknown>;
+    if (lean.listingId != null || lean.currentStep != null) {
+      return {
+        dealId: String(deal._id),
+        status: String(deal.status ?? ''),
+        skipped: true,
+      };
+    }
+
+    if (deal.status === DealStatus.CLOSED) {
+      return {
+        dealId: String(deal._id),
+        status: DealStatus.CLOSED,
+        alreadyClosed: true,
+      };
+    }
+
+    deal.status = DealStatus.CLOSED;
+    deal.closed_at = new Date();
+    await deal.save();
+
+    if (deal.listing_id) {
+      await this.listingModel.findByIdAndUpdate(deal.listing_id, {
+        status: ListingStatus.CLOSED,
+      });
+    }
+
+    await this.lockChatRoom(deal._id).catch(() => null);
+
+    return {
+      dealId: String(deal._id),
+      status: DealStatus.CLOSED,
+    };
+  }
+
   async uploadMarketingProof(
     dealId: string,
     userId: string,

@@ -15,8 +15,25 @@ type App2Envelope = {
 };
 
 const CACHE_TTL_MS = 60_000;
+const UNDER_CONTRACT_CACHE_TTL_MS = 10_000;
 const FETCH_TIMEOUT_MS = 3000;
 const UNKNOWN: App2ListingStatusDto = { status: 'unknown' };
+
+/** Only cache statuses that are stable enough; never pin "waiting" / listed. */
+function cacheTtlFor(status: string): number | null {
+  switch (status) {
+    case 'sold':
+    case 'cancelled':
+    case 'source_deal_fell_through':
+      return CACHE_TTL_MS;
+    case 'under_contract':
+      return UNDER_CONTRACT_CACHE_TTL_MS;
+    default:
+      // marketing_pending | listed | unknown — always refetch
+      return null;
+  }
+}
+
 
 @Injectable()
 export class App2ListingsService {
@@ -95,7 +112,12 @@ export class App2ListingsService {
         return UNKNOWN;
       }
 
-      this.cache.set(id, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+      const ttl = cacheTtlFor(String(data.status));
+      if (ttl != null) {
+        this.cache.set(id, { data, expiresAt: Date.now() + ttl });
+      } else {
+        this.cache.delete(id);
+      }
       return data;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

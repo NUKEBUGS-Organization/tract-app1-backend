@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 
 import { InternalGuard } from '../auth/guards/internal.guard';
@@ -18,5 +18,10 @@ export class InternalDealsController {
   @Get(':dealId/status')
   getDealStatus(@Param('dealId') dealId: string) {
     return this.dealsService.getDealStatusInternal(dealId);
+  }
+
+  @Post(':dealId/mark-closed')
+  markClosedFromApp2(@Param('dealId') dealId: string) {
+    return this.dealsService.markClosedFromApp2Internal(dealId);
   }
 }
