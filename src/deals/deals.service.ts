@@ -30,6 +30,7 @@ import { NotificationType } from '../notifications/schemas/notification.schema';
 import { ScoreService } from '../score/score.service';
 import { ScoreEventType } from '../score/schemas/score-event.schema';
 import { KillSwitchReason } from './dto/trigger-kill-switch.dto';
+import { buildListingAddress } from '../common/utils/listing-address';
 
 @Injectable()
 export class DealsService {
@@ -699,5 +700,106 @@ export class DealsService {
     }
 
     return deal;
+  }
+
+  async getClosedDealsByUserInternal(userId: string) {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid userId');
+    }
+
+    const deals = await this.dealModel
+      .find({
+        buyer_id: new Types.ObjectId(userId),
+        status: DealStatus.CLOSED,
+      })
+      .populate({
+        path: 'listing_id',
+        select: 'address state_code zip_code',
+      })
+      .populate({
+        path: 'contract_id',
+        populate: {
+          path: 'bid_id',
+          select: 'bid_price',
+        },
+      })
+      .populate({
+        path: 'buyer_id',
+        select: 'role',
+      })
+      .sort({ closed_at: -1 })
+      .lean();
+
+    return deals.map((deal) => {
+      const listing = deal.listing_id as
+        | {
+            _id?: Types.ObjectId;
+            address?: string;
+            state_code?: string;
+          }
+        | Types.ObjectId
+        | null;
+
+      const buyer = deal.buyer_id as
+        | { role?: Role }
+        | Types.ObjectId
+        | null;
+
+      const contract = deal.contract_id as
+        | {
+            bid_id?:
+              | { bid_price?: number }
+              | Types.ObjectId
+              | null;
+          }
+        | Types.ObjectId
+        | null;
+
+      const listingDoc =
+        listing && typeof listing === 'object' && 'address' in listing
+          ? listing
+          : null;
+      const buyerDoc =
+        buyer && typeof buyer === 'object' && 'role' in buyer ? buyer : null;
+      const contractDoc =
+        contract && typeof contract === 'object' && 'bid_id' in contract
+          ? contract
+          : null;
+
+      const bid =
+        contractDoc?.bid_id &&
+        typeof contractDoc.bid_id === 'object' &&
+        'bid_price' in contractDoc.bid_id
+          ? contractDoc.bid_id
+          : null;
+
+      const address = listingDoc?.address ?? '';
+      const stateCode = listingDoc?.state_code ?? '';
+      const listingId =
+        listingDoc?._id?.toString() ??
+        (listing instanceof Types.ObjectId
+          ? listing.toString()
+          : String(deal.listing_id ?? ''));
+
+      const closed =
+        deal.closed_at instanceof Date
+          ? deal.closed_at
+          : deal.closed_at
+            ? new Date(deal.closed_at)
+            : null;
+
+      const role: 'wholesaler' | 'realtor' =
+        buyerDoc?.role === Role.REALTOR ? 'realtor' : 'wholesaler';
+
+      return {
+        sourceApp: 'app1' as const,
+        dealId: String(deal._id),
+        listingId,
+        listingAddress: buildListingAddress(address, stateCode),
+        purchasePrice: Number(bid?.bid_price ?? 0),
+        closedAt: closed ? closed.toISOString() : '',
+        role,
+      };
+    });
   }
 }

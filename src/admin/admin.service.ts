@@ -642,11 +642,55 @@ export class AdminService {
     }
 
     deal.status = DealStatus.CLOSED;
-
+    deal.closed_at = new Date();
     await deal.save();
+
+    await this.listingModel.findByIdAndUpdate(deal.listing_id, {
+      status: ListingStatus.CLOSED,
+    });
+
+    await this.roomModel.findOneAndUpdate(
+      { deal_id: deal._id },
+      { is_locked: true, is_active: false },
+    );
+
+    const [sellerUser, buyer, listing] = await Promise.all([
+      this.userModel.findById(deal.seller_id).lean(),
+      this.userModel.findById(deal.buyer_id).lean(),
+      this.listingModel.findById(deal.listing_id).lean(),
+    ]);
+
+    if (sellerUser && buyer && listing) {
+      let finalPrice = 0;
+
+      const contract = await this.contractModel
+        .findById(deal.contract_id)
+        .lean();
+
+      if (contract) {
+        const bid = await this.bidModel.findById(contract.bid_id).lean();
+        finalPrice = bid?.bid_price || 0;
+      }
+
+      this.notificationsService
+        .notifyDealClosed({
+          seller_id: sellerUser._id.toString(),
+          seller_email: sellerUser.email,
+          seller_name: sellerUser.fullName,
+          buyer_id: buyer._id.toString(),
+          buyer_email: buyer.email,
+          buyer_name: buyer.fullName,
+          deal_id: deal._id.toString(),
+          listing_id: deal.listing_id.toString(),
+          address: listing.address,
+          final_price: finalPrice,
+        })
+        .catch(() => null);
+    }
 
     return {
       message: 'Deal closed successfully',
+      deal,
     };
   }
 

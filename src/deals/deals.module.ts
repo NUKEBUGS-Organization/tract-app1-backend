@@ -14,6 +14,7 @@ import { ChatRoom, ChatRoomSchema } from 'src/chat/schemas/chat-room.schema';
 import { DealsService } from './deals.service';
 import { DealsAutomationService } from './deals-automation.service';
 import { DealsController } from './deals.controller';
+import { InternalDealsController } from './internal-deals.controller';
 import { ChatModule } from '../chat/chat.module';
 import { NotificationsModule } from 'src/notifications/notifications.module';
 import { ScoreModule } from '../score/score.module';
@@ -44,7 +45,7 @@ import { ScoreModule } from '../score/score.module';
     ScoreModule,
     forwardRef(() => ChatModule),
   ],
-  controllers: [DealsController],
+  controllers: [DealsController, InternalDealsController],
   providers: [DealsService, DealsAutomationService],
   exports: [DealsService, MongooseModule],
 })
