@@ -192,6 +192,7 @@ export class DealsService {
       .lean();
 
     const app2StatusEligible: DealStatus[] = [
+      DealStatus.PROCEEDING_TO_CLOSING,
       DealStatus.CLOSED,
       DealStatus.CANCELLED,
       DealStatus.BACKUP_ACTIVATED,
