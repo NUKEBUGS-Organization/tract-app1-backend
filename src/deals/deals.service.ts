@@ -191,9 +191,15 @@ export class DealsService {
       })
       .lean();
 
+    const app2StatusEligible: DealStatus[] = [
+      DealStatus.CLOSED,
+      DealStatus.CANCELLED,
+      DealStatus.BACKUP_ACTIVATED,
+    ];
+
     return Promise.all(
       deals.map(async (deal) => {
-        if (deal.status !== DealStatus.CLOSED) {
+        if (!app2StatusEligible.includes(deal.status as DealStatus)) {
           return deal;
         }
 
@@ -207,6 +213,25 @@ export class DealsService {
         };
       }),
     );
+  }
+
+  async getDealStatusInternal(dealId: string): Promise<{
+    dealId: string;
+    status: string;
+  }> {
+    if (!Types.ObjectId.isValid(dealId)) {
+      throw new BadRequestException('Invalid dealId');
+    }
+
+    const deal = await this.dealModel.findById(dealId).select('status').lean();
+    if (!deal) {
+      throw new NotFoundException('Deal not found');
+    }
+
+    return {
+      dealId: String(deal._id),
+      status: deal.status,
+    };
   }
 
   async uploadMarketingProof(
@@ -730,7 +755,9 @@ export class DealsService {
     const deals = await this.dealModel
       .find({
         buyer_id: new Types.ObjectId(userId),
-        status: DealStatus.CLOSED,
+        status: {
+          $in: [DealStatus.CLOSED, DealStatus.PROCEEDING_TO_CLOSING],
+        },
       })
       .populate({
         path: 'listing_id',

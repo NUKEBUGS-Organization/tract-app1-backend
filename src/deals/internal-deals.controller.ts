@@ -14,4 +14,9 @@ export class InternalDealsController {
   getClosedDealsByUser(@Param('userId') userId: string) {
     return this.dealsService.getClosedDealsByUserInternal(userId);
   }
+
+  @Get(':dealId/status')
+  getDealStatus(@Param('dealId') dealId: string) {
+    return this.dealsService.getDealStatusInternal(dealId);
+  }
 }
