@@ -644,7 +644,7 @@ export class AdminService {
 
     // Shared Mongo `deals` collection includes App2 docs (listingId / currentStep).
     // App1 close requires listing_id, seller_id, buyer_id, contract_id.
-    const lean = deal.toObject() as Record<string, unknown>
+    const lean = deal.toObject() as unknown as Record<string, unknown>
     const isApp2Shaped =
       lean.listingId != null ||
       lean.currentStep != null ||
