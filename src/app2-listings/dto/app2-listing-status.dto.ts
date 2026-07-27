@@ -6,6 +6,7 @@ export type App2ListingStatusDto =
       listingId: string;
       dealId: string;
       currentStep: string;
+      titleRepAssigned?: boolean;
     }
   | {
       status: 'sold';
