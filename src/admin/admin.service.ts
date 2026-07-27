@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -639,6 +640,23 @@ export class AdminService {
 
     if (!deal) {
       throw new NotFoundException('Deal not found');
+    }
+
+    // Shared Mongo `deals` collection includes App2 docs (listingId / currentStep).
+    // App1 close requires listing_id, seller_id, buyer_id, contract_id.
+    const lean = deal.toObject() as Record<string, unknown>
+    const isApp2Shaped =
+      lean.listingId != null ||
+      lean.currentStep != null ||
+      !deal.listing_id ||
+      !deal.seller_id ||
+      !deal.buyer_id ||
+      !deal.contract_id
+
+    if (isApp2Shaped) {
+      throw new BadRequestException(
+        'This is a Buyer Tract (App2) deal and cannot be closed from Seller Tract admin. Advance or close it from the App2 deal tracker / title pipeline.',
+      )
     }
 
     deal.status = DealStatus.CLOSED;
