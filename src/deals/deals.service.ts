@@ -723,6 +723,58 @@ export class DealsService {
   }
 
   async getClosedDealsByUserInternal(userId: string) {
+    return this.getDealsByUserInternal(userId, [DealStatus.CLOSED]);
+  }
+
+  /** App2 Property Source: signed/active partner deals (+ closed for history). */
+  async getListableDealsByUserInternal(userId: string) {
+    return this.getDealsByUserInternal(userId, [
+      DealStatus.ACTIVE,
+      DealStatus.PROCEEDING_TO_CLOSING,
+      DealStatus.CLOSED,
+    ]);
+  }
+
+  /**
+   * Called by App2 when a listing is created/published with this App1 deal id.
+   * Sets the role-appropriate proof URL and clears the kill-switch deadline.
+   */
+  async markMarketingCompleteInternal(dealId: string, proofUrl?: string) {
+    if (!Types.ObjectId.isValid(dealId)) {
+      throw new BadRequestException('Invalid dealId');
+    }
+
+    const deal = await this.dealModel.findById(dealId);
+    if (!deal) {
+      throw new NotFoundException('Deal not found');
+    }
+
+    this.assertDealIsActionable(deal);
+
+    const buyer = await this.userModel.findById(deal.buyer_id);
+    const url =
+      (proofUrl ?? '').trim() || `app2-listing:${deal._id.toString()}`;
+
+    if (buyer?.role === Role.REALTOR) {
+      deal.market_launch_proof_url = url;
+      deal.market_launch_deadline = null;
+    } else {
+      deal.marketing_proof_url = url;
+      deal.marketing_deadline = null;
+    }
+
+    await deal.save();
+
+    return {
+      message: 'Marketing proof marked complete via App2 listing',
+      deal,
+    };
+  }
+
+  private async getDealsByUserInternal(
+    userId: string,
+    statuses: DealStatus[],
+  ) {
     if (!Types.ObjectId.isValid(userId)) {
       throw new BadRequestException('Invalid userId');
     }
@@ -730,7 +782,7 @@ export class DealsService {
     const deals = await this.dealModel
       .find({
         buyer_id: new Types.ObjectId(userId),
-        status: DealStatus.CLOSED,
+        status: { $in: statuses },
       })
       .populate({
         path: 'listing_id',
@@ -747,7 +799,7 @@ export class DealsService {
         path: 'buyer_id',
         select: 'role',
       })
-      .sort({ closed_at: -1 })
+      .sort({ updatedAt: -1 })
       .lean();
 
     return deals.map((deal) => {
@@ -826,6 +878,7 @@ export class DealsService {
         zipCode,
         purchasePrice: Number(bid?.bid_price ?? 0),
         closedAt: closed ? closed.toISOString() : '',
+        status: deal.status,
         role,
       };
     });

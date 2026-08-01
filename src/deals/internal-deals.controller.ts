@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 
 import { InternalGuard } from '../auth/guards/internal.guard';
@@ -13,5 +13,23 @@ export class InternalDealsController {
   @Get('closed-by-user/:userId')
   getClosedDealsByUser(@Param('userId') userId: string) {
     return this.dealsService.getClosedDealsByUserInternal(userId);
+  }
+
+  /** Signed/active App1 partner deals eligible for App2 Property Source. */
+  @Get('listable-by-user/:userId')
+  getListableDealsByUser(@Param('userId') userId: string) {
+    return this.dealsService.getListableDealsByUserInternal(userId);
+  }
+
+  /** App2 listing created — satisfy marketing / market-launch proof + clear deadline. */
+  @Post(':id/mark-marketing-complete')
+  markMarketingComplete(
+    @Param('id') id: string,
+    @Body() body?: { proofUrl?: string },
+  ) {
+    return this.dealsService.markMarketingCompleteInternal(
+      id,
+      body?.proofUrl,
+    );
   }
 }
