@@ -6,6 +6,7 @@ export type App2ListingStatusDto =
       listingId: string;
       dealId: string;
       currentStep: string;
+      titleRepAssigned?: boolean;
     }
   | {
       status: 'sold';
@@ -14,4 +15,5 @@ export type App2ListingStatusDto =
       closedAt: string | null;
     }
   | { status: 'cancelled'; listingId: string }
+  | { status: 'source_deal_fell_through'; listingId: string }
   | { status: 'unknown' };

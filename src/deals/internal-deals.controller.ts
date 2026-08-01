@@ -32,4 +32,14 @@ export class InternalDealsController {
       body?.proofUrl,
     );
   }
+
+  @Get(':dealId/status')
+  getDealStatus(@Param('dealId') dealId: string) {
+    return this.dealsService.getDealStatusInternal(dealId);
+  }
+
+  @Post(':dealId/mark-closed')
+  markClosedFromApp2(@Param('dealId') dealId: string) {
+    return this.dealsService.markClosedFromApp2Internal(dealId);
+  }
 }
