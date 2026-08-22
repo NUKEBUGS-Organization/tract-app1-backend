@@ -42,6 +42,15 @@ export enum RestrictionStatus {
   REINSTATEMENT_REQUIRED = 'reinstatement_required',
 }
 
+/** How the account authenticates. Values match App 2's convention exactly
+ * ('password' / 'google') since this field lives on the shared `users`
+ * collection. Google accounts still get a (unusable, random) passwordHash
+ * so the field can stay required on the shared schema. */
+export enum AuthProvider {
+  PASSWORD = 'password',
+  GOOGLE = 'google',
+}
+
 @Schema({
   timestamps: true,
   collection: 'users', // shared with App 2
@@ -55,6 +64,18 @@ export class User {
 
   @Prop({ required: true, select: false })
   passwordHash: string;
+
+  @Prop({
+    type: String,
+    enum: Object.values(AuthProvider),
+    default: AuthProvider.PASSWORD,
+  })
+  authProvider: AuthProvider;
+
+  // Google's stable `sub` claim. Sparse+unique so plenty of null values
+  // (every local-only account) coexist without index collisions.
+  @Prop({ type: String, default: null, unique: true, sparse: true })
+  googleId: string | null;
 
   @Prop({ type: String, enum: Object.values(Role), required: true })
   role: Role;

@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   Injectable,
   UnauthorizedException,
   BadRequestException,
@@ -10,22 +11,27 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import { randomBytes } from 'crypto';
 import {
   User,
   UserDocument,
   APP1_ALLOWED_ROLES,
-  Role,
+  APP1_REGISTER_ROLES,
+  AuthProvider,
   KycStatus,
 } from '../users/schemas/user.schema';
 import { Session, SessionDocument } from '../sessions/schemas/session.schema';
 import { MailService } from '../mail/mail.service';
 import { SmsService } from '../sms/sms.service';
 import { OtpService } from './otp.service';
-import { RegisterDto } from './dto/auth.dto';
+import { RegisterDto, LoginDto, GoogleCompleteDto } from './dto/auth.dto';
+import type { GoogleProfilePayload } from './strategies/google.strategy';
 
 const BCRYPT_ROUNDS = 12;
 /** Concurrent refresh grace — sibling apps/tabs that race rotation get TOKEN_ROTATED. */
 const REFRESH_ROTATION_GRACE_MS = 30_000;
+/** google_signup JWT lifetime — user must finish the completion form within this window. */
+const GOOGLE_SIGNUP_TOKEN_TTL = '10m';
 
 @Injectable()
 export class AuthService {
@@ -63,6 +69,7 @@ export class AuthService {
         stateCode: dto.stateCode.toUpperCase().trim(),
         dob: new Date(dto.dob),
         kycStatus: KycStatus.PENDING,
+        authProvider: AuthProvider.PASSWORD,
       });
 
       await this.sendOtp(email, 'login');
@@ -121,9 +128,9 @@ export class AuthService {
     }
   }
 
-  async login(email: string, password: string) {
+  async login(dto: LoginDto) {
     try {
-      const normalized = email.toLowerCase().trim();
+      const normalized = dto.email.toLowerCase().trim();
       const user = await this.userModel
         .findOne({ email: normalized })
         .select('+passwordHash');
@@ -134,11 +141,11 @@ export class AuthService {
           'Account is banned: ' + (user.banReason ?? ''),
         );
       }
-      if (!APP1_ALLOWED_ROLES.includes(user.role as Role)) {
+      if (!APP1_ALLOWED_ROLES.includes(user.role)) {
         throw new ForbiddenException('This account cannot access App 1');
       }
 
-      const valid = await bcrypt.compare(password, user.passwordHash);
+      const valid = await bcrypt.compare(dto.password, user.passwordHash);
       if (!valid) throw new UnauthorizedException('Invalid credentials');
 
       await this.sendOtp(normalized, 'login');
@@ -157,6 +164,152 @@ export class AuthService {
     }
   }
 
+  // ─── Google OAuth (redirect flow — mirrors App 2 exactly, shared schema) ──
+
+  // Called from the /auth/google/callback route once Passport has verified
+  // the OAuth code and handed back the Google profile. Returns either a
+  // ready session (existing, complete account) or a short-lived signup
+  // token the frontend carries to the "finish signing up" page.
+  async handleGoogleAuth(profile: GoogleProfilePayload) {
+    const email = profile.email.toLowerCase().trim();
+    const user = await this.userModel
+      .findOne({ email })
+      .select('+passwordHash');
+
+    if (user) {
+      if (user.isBanned) {
+        throw new ForbiddenException(
+          'Account is banned: ' + (user.banReason ?? ''),
+        );
+      }
+      if (!APP1_ALLOWED_ROLES.includes(user.role)) {
+        throw new ForbiddenException('This account cannot access App 1');
+      }
+
+      // Shared schema requires phone — an account missing it isn't usable
+      // yet, so route through the same completion flow as a brand-new user.
+      if (!user.phone) {
+        return {
+          mode: 'signup' as const,
+          signupToken: this.signGoogleSignupToken(profile),
+        };
+      }
+
+      if (!user.googleId) {
+        // Link via findByIdAndUpdate, never `.save()` on a doc fetched
+        // without +passwordHash re-selected everywhere — a naked save()
+        // here can trip the required passwordHash/phone validators.
+        await this.userModel.findByIdAndUpdate(user._id, {
+          googleId: profile.googleId,
+        });
+      }
+
+      const session = await this.createSession(user);
+      return { mode: 'login' as const, session };
+    }
+
+    return {
+      mode: 'signup' as const,
+      signupToken: this.signGoogleSignupToken(profile),
+    };
+  }
+
+  private signGoogleSignupToken(profile: GoogleProfilePayload): string {
+    return this.jwtService.sign(
+      {
+        purpose: 'google_signup',
+        googleId: profile.googleId,
+        email: profile.email,
+        fullName: profile.fullName,
+        avatarUrl: profile.avatarUrl ?? null,
+      },
+      { secret: process.env.JWT_SECRET, expiresIn: GOOGLE_SIGNUP_TOKEN_TTL },
+    );
+  }
+
+  // Finishes a Google sign-up: verifies the google_signup token from the
+  // callback redirect, then creates (or completes) the user with the
+  // phone/role/stateCode/dob the completion form collected. No OTP step —
+  // the Google account itself is the verified auth factor.
+  async completeGoogleSignup(dto: GoogleCompleteDto) {
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(dto.token, {
+        secret: process.env.JWT_SECRET,
+      });
+    } catch {
+      throw new UnauthorizedException(
+        'Signup session expired. Please sign in with Google again.',
+      );
+    }
+
+    if (payload?.purpose !== 'google_signup') {
+      throw new UnauthorizedException('Invalid signup token');
+    }
+
+    if (!APP1_REGISTER_ROLES.includes(dto.role)) {
+      throw new BadRequestException(
+        'Role must be one of: seller, wholesaler, realtor',
+      );
+    }
+
+    const email = String(payload.email).toLowerCase().trim();
+    const existing = await this.userModel
+      .findOne({ email })
+      .select('+passwordHash');
+
+    let user: UserDocument | null;
+
+    if (existing) {
+      if (existing.phone) {
+        throw new ConflictException(
+          'An account already exists for this email — please sign in instead',
+        );
+      }
+
+      user = await this.userModel.findByIdAndUpdate(
+        existing._id,
+        {
+          phone: dto.phone,
+          role: dto.role,
+          stateCode: dto.stateCode.toUpperCase().trim(),
+          dob: new Date(dto.dob),
+          googleId: payload.googleId,
+          authProvider: AuthProvider.GOOGLE,
+        },
+        { new: true },
+      );
+    } else {
+      // passwordHash stays required on the shared schema — the user never
+      // sees or uses this, they always authenticate via Google.
+      const passwordHash = await bcrypt.hash(
+        randomBytes(32).toString('hex'),
+        BCRYPT_ROUNDS,
+      );
+
+      user = await this.userModel.create({
+        fullName: payload.fullName,
+        email,
+        phone: dto.phone,
+        passwordHash,
+        role: dto.role,
+        stateCode: dto.stateCode.toUpperCase().trim(),
+        dob: new Date(dto.dob),
+        kycStatus: KycStatus.PENDING,
+        authProvider: AuthProvider.GOOGLE,
+        googleId: payload.googleId,
+      });
+    }
+
+    if (!user) {
+      throw new InternalServerErrorException(
+        'Failed to complete Google sign-up. Please try again.',
+      );
+    }
+
+    return this.createSession(user);
+  }
+
   async verifyOtp(email: string, otp: string, purpose: string) {
     try {
       const normalized = email.toLowerCase().trim();
@@ -170,7 +323,9 @@ export class AuthService {
         purpose,
       );
       if (!allowed) {
-        throw new BadRequestException('Too many OTP attempts. Try again later.');
+        throw new BadRequestException(
+          'Too many OTP attempts. Try again later.',
+        );
       }
 
       const valid = await this.otpService.verifyEmailOtp(
@@ -251,7 +406,7 @@ export class AuthService {
 
       const user = await this.userModel.findById(payload.sub);
       if (!user) throw new UnauthorizedException('User not found');
-      if (!APP1_ALLOWED_ROLES.includes(user.role as Role)) {
+      if (!APP1_ALLOWED_ROLES.includes(user.role)) {
         throw new ForbiddenException('This account cannot access App 1');
       }
 
@@ -341,7 +496,10 @@ export class AuthService {
         );
       }
 
-      const apiPublicUrl = process.env.API_PUBLIC_URL?.trim().replace(/\/$/, '');
+      const apiPublicUrl = process.env.API_PUBLIC_URL?.trim().replace(
+        /\/$/,
+        '',
+      );
       if (!apiPublicUrl) {
         throw new InternalServerErrorException(
           'API_PUBLIC_URL is required for Jumio KYC callback',

@@ -1,5 +1,6 @@
 import {
   Controller,
+  Get,
   Post,
   Body,
   UseGuards,
@@ -8,17 +9,20 @@ import {
   Res,
   UnauthorizedException,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import type { Request as ExpressRequest, Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiExcludeEndpoint,
 } from '@nestjs/swagger';
 import { HttpCode, HttpStatus } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import type { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
+import type { GoogleProfilePayload } from './strategies/google.strategy';
 import {
   RegisterDto,
   LoginDto,
@@ -26,7 +30,19 @@ import {
   VerifyOtpDto,
   RefreshTokenDto,
   ResetPasswordDto,
+  GoogleCompleteDto,
 } from './dto/auth.dto';
+
+interface GoogleAuthenticatedRequest extends ExpressRequest {
+  user: GoogleProfilePayload;
+}
+
+/** SPA origin Google OAuth redirects land on. Reuses APP_URL (already the
+ * canonical frontend origin, e.g. for Jumio/mail links) rather than adding
+ * a second env var for the same concept. */
+function frontendUrl(): string {
+  return (process.env.APP_URL ?? '').trim().replace(/\/$/, '');
+}
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -102,7 +118,7 @@ export class AuthController {
   @ApiResponse({ status: 200, description: '2FA OTP sent to email and phone' })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   login(@Body() dto: LoginDto) {
-    return this.authService.login(dto.email, dto.password);
+    return this.authService.login(dto);
   }
 
   @Post('refresh')
@@ -152,6 +168,72 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Reset token expired' })
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.resetToken, dto.newPassword);
+  }
+
+  // ─── Google OAuth (redirect flow) ────────────────────────────────────────
+  // Mirrors App 2's implementation exactly since both share the `users`
+  // collection: GET /google starts the redirect, GET /google/callback lands
+  // an existing user in a session or bounces a new one to the frontend's
+  // signup-completion page, POST /google/complete finishes that signup.
+
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  @ApiExcludeEndpoint()
+  googleAuth() {
+    // Passport intercepts this request and redirects to Google's consent
+    // screen before this body ever runs.
+  }
+
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  @ApiExcludeEndpoint()
+  async googleCallback(
+    @Request() req: GoogleAuthenticatedRequest,
+    @Res() res: Response,
+  ) {
+    const base = frontendUrl();
+
+    try {
+      const result = await this.authService.handleGoogleAuth(req.user);
+
+      if (result.mode === 'login') {
+        res.cookie(
+          'refreshToken',
+          result.session.refreshToken,
+          REFRESH_COOKIE_OPTIONS,
+        );
+        res.redirect(`${base}/auth/google/callback?status=success`);
+        return;
+      }
+
+      const params = new URLSearchParams({
+        token: result.signupToken,
+        email: req.user.email,
+        fullName: req.user.fullName,
+      });
+      res.redirect(`${base}/register/google-complete?${params.toString()}`);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Google sign-in failed';
+      res.redirect(`${base}/login?error=${encodeURIComponent(message)}`);
+    }
+  }
+
+  @Post('google/complete')
+  @ApiOperation({
+    summary:
+      'Finish a Google sign-up with role/phone/dob/stateCode + the signup token from the callback redirect',
+  })
+  @ApiResponse({ status: 201, description: 'Account created, session issued' })
+  @ApiResponse({ status: 409, description: 'Account already exists' })
+  async completeGoogleSignup(
+    @Body() dto: GoogleCompleteDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.completeGoogleSignup(dto);
+    res.cookie('refreshToken', result.refreshToken, REFRESH_COOKIE_OPTIONS);
+    const { refreshToken: _refreshToken, ...body } = result;
+    return body;
   }
 
   @Post('kyc/initiate')
