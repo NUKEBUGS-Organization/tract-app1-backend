@@ -8,6 +8,7 @@ import { AuthService } from './auth.service';
 
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
+import { GoogleStrategy } from './strategies/google.strategy';
 
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { Otp, OtpSchema } from './schemas/otp.schema';
@@ -38,6 +39,7 @@ import { OtpService } from './otp.service';
     OtpService,
     JwtStrategy,
     JwtRefreshStrategy,
+    GoogleStrategy,
   ],
   exports: [AuthService, JwtStrategy, PassportModule],
 })

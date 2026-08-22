@@ -6,6 +6,7 @@ import {
   IsDateString,
   IsMobilePhone,
   IsOptional,
+  Matches,
   MinLength,
 } from 'class-validator';
 import { APP1_REGISTER_ROLES, Role } from '../../users/schemas/user.schema';
@@ -102,4 +103,38 @@ export class ResetPasswordDto {
   @IsString()
   @MinLength(8)
   newPassword: string;
+}
+
+// Completes a Google sign-up. `token` is the short-lived google_signup JWT
+// handed back in the /auth/google/callback redirect query string; the rest
+// are the fields Google can't supply that the frontend collects on the
+// "finish signing up" page.
+export class GoogleCompleteDto {
+  @ApiProperty({ description: 'google_signup JWT from the callback redirect' })
+  @IsString()
+  token: string;
+
+  @ApiProperty({
+    enum: APP1_REGISTER_ROLES,
+    example: Role.SELLER,
+    description: 'Public registration roles (admin must be seeded)',
+  })
+  @IsIn(APP1_REGISTER_ROLES, {
+    message: 'Role must be one of: seller, wholesaler, realtor',
+  })
+  role: Role;
+
+  @ApiProperty({ example: '+15551234567' })
+  @Matches(/^\+?[1-9]\d{9,14}$/, {
+    message: 'phone must be a valid phone number',
+  })
+  phone: string;
+
+  @ApiProperty({ example: '1990-01-15' })
+  @IsDateString()
+  dob: string;
+
+  @ApiProperty({ example: 'TX' })
+  @IsString()
+  stateCode: string;
 }
