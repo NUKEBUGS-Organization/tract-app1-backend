@@ -21,6 +21,7 @@ import {
 import { HttpCode, HttpStatus } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
 import type { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 import type { GoogleProfilePayload } from './strategies/google.strategy';
 import {
@@ -177,11 +178,13 @@ export class AuthController {
   // signup-completion page, POST /google/complete finishes that signup.
 
   @Get('google')
-  @UseGuards(AuthGuard('google'))
+  @UseGuards(GoogleAuthGuard)
   @ApiExcludeEndpoint()
   googleAuth() {
     // Passport intercepts this request and redirects to Google's consent
-    // screen before this body ever runs.
+    // screen before this body ever runs. GoogleAuthGuard forces
+    // prompt=select_account so Google always shows the account chooser,
+    // instead of silently reusing whichever account was picked last time.
   }
 
   @Get('google/callback')
