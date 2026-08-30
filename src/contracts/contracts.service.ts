@@ -24,7 +24,11 @@ import { User, UserDocument, Role } from '../users/schemas/user.schema';
 import { CreateContractDto } from './dto/create-contract.dto';
 import { DealsService } from 'src/deals/deals.service';
 import { CloudinaryService } from '../common/services/cloudinary.service';
-import { generateContractPdf } from '../common/utils/pdf.generator';
+import {
+  generateContractPdf,
+  fmtMoney,
+  ordinal,
+} from '../common/utils/pdf.generator';
 import { DocuSealService } from '../docuseal/docuseal.service';
 import { PaginationDto } from 'src/admin/dto/pagination.dto';
 import { NotificationsService } from 'src/notifications/notifications.service';
@@ -96,20 +100,27 @@ export class ContractsService {
 
     // Generate draft PDF and upload to Cloudinary
     const emdAmount = dto.emd_amount ?? Math.min(1000, bid.bid_price);
+    const balanceAmount = bid.bid_price - emdAmount;
+    const closingDays = dto.closing_days ?? 120;
+    const effectiveDate = new Date();
+
+    const sellerAddress = `${listing.address}, ${listing.state_code} ${listing.zip_code}`;
+    const buyerAddress = dto.buyer_address ?? 'On File';
+    const buyerNameWithAssigns = `${buyer.fullName} and/or Assigns`;
 
     const pdfBuffer = await generateContractPdf({
       sellerName: seller.fullName,
-      sellerAddress: `${listing.address}, ${listing.state_code} ${listing.zip_code}`,
-      buyerName: `${buyer.fullName} and/or Assigns`,
-      buyerAddress: dto.buyer_address ?? 'On File',
+      sellerAddress,
+      buyerName: buyerNameWithAssigns,
+      buyerAddress,
       propertyAddress: listing.address,
       propertyBlock: dto.property_block,
       propertyLot: dto.property_lot,
       purchasePrice: bid.bid_price,
       emdAmount,
-      balanceAmount: bid.bid_price - emdAmount,
-      closingDays: dto.closing_days ?? 120,
-      effectiveDate: new Date(),
+      balanceAmount,
+      closingDays,
+      effectiveDate,
     });
 
     const uploadResult = await this.cloudinaryService.uploadFile(
@@ -128,6 +139,34 @@ export class ContractsService {
       pdf_url: uploadResult.secure_url,
     });
 
+    // Merge-field values for the DocuSeal template — field names here must
+    // match the template's field names exactly (case-sensitive). Shared
+    // across both submitters so either party's copy renders the same text;
+    // ClosingTerms is a full phrase (not a bare number) since the template
+    // reads "Closing shall occur on or before ______." The effective date
+    // is split into three fields (day/month/year) rather than one combined
+    // string, because the template has three separate pre-printed blanks
+    // ("made this ___ day of ___, 20___") with fixed text in between —
+    // a single field can't flow text around text that's already on the page.
+    const commonValues = {
+      EffectiveDay: ordinal(effectiveDate.getDate()),
+      EffectiveMonth: effectiveDate.toLocaleDateString('en-US', {
+        month: 'long',
+      }),
+      EffectiveYear: String(effectiveDate.getFullYear()).slice(-2),
+      SellerName: seller.fullName,
+      SellerAddress: sellerAddress,
+      BuyerName: buyerNameWithAssigns,
+      BuyerAddress: buyerAddress,
+      PropertyAddress: listing.address,
+      PropertyBlock: dto.property_block ?? '',
+      PropertyLot: dto.property_lot ?? '',
+      PurchasePrice: fmtMoney(bid.bid_price),
+      EMDAmount: fmtMoney(emdAmount),
+      BalanceAmount: fmtMoney(balanceAmount),
+      ClosingTerms: `${closingDays} days from the conclusion of Attorney Review`,
+    };
+
     // Create DocuSeal submission
     try {
       const submission = await this.docuSealService.createSubmission([
@@ -136,26 +175,14 @@ export class ContractsService {
           email: seller.email,
           name: seller.fullName,
           external_id: `${contract._id}:seller`,
-          values: {
-            SellerName: seller.fullName,
-            PropertyAddress: `${listing.address}, ${listing.state_code} ${listing.zip_code}`,
-            PurchasePrice: bid.bid_price,
-            EMDAmount: emdAmount,
-            ClosingDays: dto.closing_days ?? 120,
-          },
+          values: commonValues,
         },
         {
           role: 'Buyer',
           email: buyer.email,
           name: buyer.fullName,
           external_id: `${contract._id}:buyer`,
-          values: {
-            BuyerName: `${buyer.fullName} and/or Assigns`,
-            PropertyAddress: `${listing.address}, ${listing.state_code} ${listing.zip_code}`,
-            PurchasePrice: bid.bid_price,
-            EMDAmount: emdAmount,
-            ClosingDays: dto.closing_days ?? 120,
-          },
+          values: commonValues,
         },
       ]);
 
