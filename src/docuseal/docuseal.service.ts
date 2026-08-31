@@ -12,13 +12,14 @@ export interface DocuSealSubmitter {
 
 export interface DocuSealSubmission {
   id: number;
+  // This DocuSeal instance's API does not echo back `role`, `embed_src`,
+  // or `external_id` on submission create — only `id`, `slug`, and `email`.
+  // Order is preserved from the request, so callers must match submitters
+  // positionally (the order they were sent in) rather than by role.
   submitters: Array<{
     id: number;
-    role: string;
+    slug: string;
     email: string;
-    external_id: string;
-    embed_src: string;
-    status: string;
   }>;
 }
 
@@ -46,12 +47,14 @@ export interface DocuSealWebhookEvent {
 export class DocuSealService {
   private readonly logger = new Logger(DocuSealService.name);
   private readonly client: AxiosInstance;
+  private readonly baseURL: string;
   private readonly templateId: string;
   readonly webhookSecret: string;
 
   constructor(private readonly configService: ConfigService) {
     const baseURL = this.configService.getOrThrow<string>('DOCUSEAL_API_URL');
     const apiKey = this.configService.getOrThrow<string>('DOCUSEAL_API_KEY');
+    this.baseURL = baseURL.replace(/\/+$/, '');
 
     this.templateId = this.configService.getOrThrow<string>(
       'DOCUSEAL_CONTRACT_TEMPLATE_ID',
@@ -72,10 +75,13 @@ export class DocuSealService {
   async createSubmission(
     submitters: DocuSealSubmitter[],
   ): Promise<DocuSealSubmission> {
+    // This server's API requires submitters nested under `submission`, not
+    // as a flat top-level array — a flat `submitters` array is silently
+    // accepted and returns an empty result instead of erroring.
     const payload = {
       template_id: Number(this.templateId),
       send_email: false,
-      submitters,
+      submission: [{ submitters }],
     };
 
     this.logger.log(
@@ -86,8 +92,8 @@ export class DocuSealService {
 
     this.logger.log(`DocuSeal raw response: ${JSON.stringify(data)}`);
 
-    // DocuSeal returns a flat array of submitter objects:
-    // [{ id, submission_id, role, email, embed_src, status, ... }, ...]
+    // Response is a flat array of submitter objects, in the same order
+    // they were sent: [{ id, submission_id, slug, email, ... }, ...]
     const submitterArray: any[] = Array.isArray(data) ? data : [data];
 
     if (!submitterArray.length || !submitterArray[0]?.submission_id) {
@@ -96,16 +102,12 @@ export class DocuSealService {
       );
     }
 
-    // Reconstruct into our DocuSealSubmission shape
     const submission: DocuSealSubmission = {
       id: submitterArray[0].submission_id,
       submitters: submitterArray.map((s) => ({
         id: s.id,
-        role: s.role,
+        slug: s.slug,
         email: s.email,
-        external_id: s.external_id,
-        embed_src: s.embed_src,
-        status: s.status,
       })),
     };
 
@@ -115,17 +117,15 @@ export class DocuSealService {
     return submission;
   }
 
-  async getSubmission(submissionId: string): Promise<DocuSealSubmission> {
-    const { data } = await this.client.get<DocuSealSubmission>(
+  async getSubmission(submissionId: string): Promise<any> {
+    const { data } = await this.client.get<any>(
       `/api/submissions/${submissionId}`,
     );
     return data;
   }
 
-  async getSubmitterEmbedSrc(submitterId: string): Promise<string> {
-    const { data } = await this.client.get<{ embed_src: string }>(
-      `/api/submitters/${submitterId}`,
-    );
-    return data.embed_src;
+  /** Builds the hosted signing page URL for a submitter's slug. */
+  buildSignUrl(slug: string): string {
+    return `${this.baseURL}/s/${slug}`;
   }
 }
