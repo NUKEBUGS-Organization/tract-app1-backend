@@ -148,7 +148,11 @@ export class ContractsService {
     // string, because the template has three separate pre-printed blanks
     // ("made this ___ day of ___, 20___") with fixed text in between —
     // a single field can't flow text around text that's already on the page.
-    const commonValues = {
+    // DocuSeal strictly rejects any field in a submitter's `values` that
+    // isn't assigned to that submitter's role on the template, so the
+    // shared fields can't be sent to both parties — each submitter gets
+    // only the fields owned by their role.
+    const sharedValues = {
       EffectiveDay: ordinal(effectiveDate.getDate()),
       EffectiveMonth: effectiveDate.toLocaleDateString('en-US', {
         month: 'long',
@@ -156,8 +160,6 @@ export class ContractsService {
       EffectiveYear: String(effectiveDate.getFullYear()).slice(-2),
       SellerName: seller.fullName,
       SellerAddress: sellerAddress,
-      BuyerName: buyerNameWithAssigns,
-      BuyerAddress: buyerAddress,
       PropertyAddress: listing.address,
       PropertyBlock: dto.property_block ?? '',
       PropertyLot: dto.property_lot ?? '',
@@ -166,8 +168,15 @@ export class ContractsService {
       BalanceAmount: fmtMoney(balanceAmount),
       ClosingTerms: `${closingDays} days from the conclusion of Attorney Review`,
     };
+    const buyerValues = {
+      BuyerName: buyerNameWithAssigns,
+      BuyerAddress: buyerAddress,
+    };
 
-    // Create DocuSeal submission
+    // Create DocuSeal submission. Seller must be sent first, buyer second —
+    // this API's create response doesn't echo back `role`, so the resulting
+    // submitters are matched back to Seller/Buyer positionally, relying on
+    // DocuSeal preserving submitter order.
     try {
       const submission = await this.docuSealService.createSubmission([
         {
@@ -175,34 +184,33 @@ export class ContractsService {
           email: seller.email,
           name: seller.fullName,
           external_id: `${contract._id}:seller`,
-          values: commonValues,
+          values: sharedValues,
         },
         {
           role: 'Buyer',
           email: buyer.email,
           name: buyer.fullName,
           external_id: `${contract._id}:buyer`,
-          values: commonValues,
+          values: buyerValues,
         },
       ]);
 
-      const sellerSubmitter = submission.submitters.find(
-        (s) => s.role === 'Seller',
-      );
-      const buyerSubmitter = submission.submitters.find(
-        (s) => s.role === 'Buyer',
-      );
+      const [sellerSubmitter, buyerSubmitter] = submission.submitters;
 
       contract.docuseal_submission_id = String(submission.id);
       if (sellerSubmitter) {
         contract.docuseal_seller_submitter_id = String(sellerSubmitter.id);
-        contract.docuseal_seller_embed_src = sellerSubmitter.embed_src;
-        contract.docuseal_seller_status = sellerSubmitter.status ?? 'pending';
+        contract.docuseal_seller_embed_src = this.docuSealService.buildSignUrl(
+          sellerSubmitter.slug,
+        );
+        contract.docuseal_seller_status = 'pending';
       }
       if (buyerSubmitter) {
         contract.docuseal_buyer_submitter_id = String(buyerSubmitter.id);
-        contract.docuseal_buyer_embed_src = buyerSubmitter.embed_src;
-        contract.docuseal_buyer_status = buyerSubmitter.status ?? 'pending';
+        contract.docuseal_buyer_embed_src = this.docuSealService.buildSignUrl(
+          buyerSubmitter.slug,
+        );
+        contract.docuseal_buyer_status = 'pending';
       }
 
       await contract.save();
