@@ -49,6 +49,19 @@ export class OtpService {
     code: string,
   ): Promise<boolean> {
     const normalised = email.toLowerCase().trim();
+
+    // Dev/demo master OTP — non-production only, opt-in via DEV_MASTER_OTP.
+    // Lets external testers sign in without a live inbox.
+    if (
+      process.env.NODE_ENV !== 'production' &&
+      process.env.DEV_MASTER_OTP &&
+      code === process.env.DEV_MASTER_OTP
+    ) {
+      await this.otpModel.deleteOne({ email: normalised, purpose });
+      this.logger.warn(`Master OTP used for ${normalised} (${purpose})`);
+      return true;
+    }
+
     const doc = await this.otpModel.findOne({ email: normalised, purpose });
     if (!doc) return false;
 

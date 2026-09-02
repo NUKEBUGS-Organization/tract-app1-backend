@@ -81,6 +81,9 @@ export class DealsService {
       { deal_id: dealId },
       { is_locked: true, is_active: false },
     );
+    // Keep the deal's own flag in sync so UIs that read deal.chat_unlocked
+    // (e.g. the seller Deal Tracker panel) don't show a stale "Unlocked".
+    await this.dealModel.findByIdAndUpdate(dealId, { chat_unlocked: false });
   }
 
   // When a selected bid falls through — deal cancelled, kill-switched, or
