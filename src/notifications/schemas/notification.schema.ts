@@ -36,6 +36,11 @@ export enum NotificationType {
   // Score / reliability
   SCORE_PENALTY_APPLIED = 'score_penalty_applied',
   SCORE_RESTRICTION_APPLIED = 'score_restriction_applied',
+
+  // Support tickets
+  TICKET_CREATED = 'ticket_created',
+  TICKET_REPLY = 'ticket_reply',
+  TICKET_RESOLVED = 'ticket_resolved',
 }
 
 export enum NotificationChannel {

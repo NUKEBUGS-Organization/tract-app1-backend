@@ -13,6 +13,7 @@ import { BidsService } from './bids.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { VerificationsModule } from '../verifications/verifications.module';
 import { ScoreModule } from '../score/score.module';
+import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { ScoreModule } from '../score/score.module';
     NotificationsModule,
     VerificationsModule,
     ScoreModule,
+    PaymentsModule,
   ],
   controllers: [BidsController, InternalBidsController],
   providers: [BidsService],

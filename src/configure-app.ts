@@ -17,6 +17,7 @@ export async function configureApp(app: INestApplication): Promise<void> {
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    optionsSuccessStatus: 204,
     origin: (
       reqOrigin: string | undefined,
       callback: (err: Error | null, allow?: boolean | string | RegExp) => void,

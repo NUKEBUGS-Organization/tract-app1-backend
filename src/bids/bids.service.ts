@@ -30,6 +30,7 @@ import { CreateBidDto } from './dto/create-bid.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { VerificationsService } from '../verifications/verifications.service';
 import { ScoreService } from '../score/score.service';
+import { UsageLimitService } from '../payments/usage-limit.service';
 import { buildListingAddress } from '../common/utils/listing-address';
 
 @Injectable()
@@ -52,6 +53,8 @@ export class BidsService {
     private readonly verificationsService: VerificationsService,
 
     private readonly scoreService: ScoreService,
+
+    private readonly usageLimitService: UsageLimitService,
   ) {}
 
   private buildRoleFields(role: Role, dto: CreateBidDto) {
@@ -150,6 +153,8 @@ export class BidsService {
       }
     }
 
+    await this.usageLimitService.consumeAttempt(bidderId, 'bid');
+
     const roleFields = this.buildRoleFields(bidder.role, dto);
 
     let netToSeller = dto.bid_price;
@@ -199,6 +204,7 @@ export class BidsService {
       createdBid = bid[0].toObject();
     } catch (error) {
       await session.abortTransaction();
+      await this.usageLimitService.compensateAttempt(bidderId, 'bid');
       throw error;
     } finally {
       session.endSession();

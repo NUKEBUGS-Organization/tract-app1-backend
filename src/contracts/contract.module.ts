@@ -13,6 +13,7 @@ import { CloudinaryService } from '../common/services/cloudinary.service';
 import { DocuSealModule } from '../docuseal/docuseal.module';
 import { DocuSealWebhookController } from '../webhooks/docuseal-webhook.controller';
 import { NotificationsModule } from 'src/notifications/notifications.module';
+import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
   imports: [
@@ -24,7 +25,8 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
     ]),
     DealsModule,
     DocuSealModule,
-    NotificationsModule
+    NotificationsModule,
+    PaymentsModule,
   ],
   controllers: [ContractsController, DocuSealWebhookController],
   providers: [ContractsService, CloudinaryService],

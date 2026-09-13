@@ -32,6 +32,7 @@ import {
 import { DocuSealService } from '../docuseal/docuseal.service';
 import { PaginationDto } from 'src/admin/dto/pagination.dto';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import { SubscriptionsService } from '../payments/subscriptions.service';
 
 @Injectable()
 export class ContractsService {
@@ -57,6 +58,7 @@ export class ContractsService {
     private readonly cloudinaryService: CloudinaryService,
     private readonly docuSealService: DocuSealService,
     private readonly notificationsService: NotificationsService,
+    private readonly subscriptionsService: SubscriptionsService,
   ) {}
 
   async createContract(
@@ -79,6 +81,9 @@ export class ContractsService {
     if (!bid) {
       throw new NotFoundException('Bid not found');
     }
+
+    // Buyer/partner must have an active SaaS subscription (seller is free).
+    await this.subscriptionsService.assertCanExecute(bid.bidder_id.toString());
 
     if (bid.status !== BidStatus.SELECTED) {
       throw new BadRequestException('Only selected bid can create contract');
@@ -327,6 +332,10 @@ export class ContractsService {
 
     if (!isSeller && !isBuyer) {
       throw new ForbiddenException('You are not a party to this contract');
+    }
+
+    if (isBuyer) {
+      await this.subscriptionsService.assertCanExecute(userId);
     }
 
     if (contract.status === ContractStatus.CANCELLED) {
