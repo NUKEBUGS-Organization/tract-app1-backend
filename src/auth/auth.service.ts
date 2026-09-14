@@ -5,6 +5,7 @@ import {
   BadRequestException,
   ForbiddenException,
   InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
@@ -26,6 +27,7 @@ import { SmsService } from '../sms/sms.service';
 import { OtpService } from './otp.service';
 import { RegisterDto, LoginDto, GoogleCompleteDto } from './dto/auth.dto';
 import type { GoogleProfilePayload } from './strategies/google.strategy';
+import { isTractcorpTestEmail } from './tractcorp-test-emails';
 
 const BCRYPT_ROUNDS = 12;
 /** Concurrent refresh grace — sibling apps/tabs that race rotation get TOKEN_ROTATED. */
@@ -35,6 +37,8 @@ const GOOGLE_SIGNUP_TOKEN_TTL = '10m';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Session.name) private sessionModel: Model<SessionDocument>,
@@ -147,6 +151,17 @@ export class AuthService {
 
       const valid = await bcrypt.compare(dto.password, user.passwordHash);
       if (!valid) throw new UnauthorizedException('Invalid credentials');
+
+      // Dedicated QA accounts: password only — no email 2FA step (same as App2).
+      if (isTractcorpTestEmail(normalized)) {
+        this.logger.warn(`[TEST] Skipping login OTP for ${normalized}`);
+        const session = await this.createSession(user);
+        return {
+          message: 'Signed in.',
+          skippedOtp: true as const,
+          ...session,
+        };
+      }
 
       await this.sendOtp(normalized, 'login');
 

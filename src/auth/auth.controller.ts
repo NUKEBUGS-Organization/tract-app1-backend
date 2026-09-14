@@ -115,11 +115,26 @@ export class AuthController {
   }
 
   @Post('login')
-  @ApiOperation({ summary: 'Login with email/password + triggers 2FA OTP' })
-  @ApiResponse({ status: 200, description: '2FA OTP sent to email and phone' })
+  @ApiOperation({
+    summary:
+      'Login with email/password — sends 2FA OTP (skipped for TRACTCORP QA accounts)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '2FA OTP sent, or session issued for QA accounts',
+  })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.login(dto);
+    if ('skippedOtp' in result && result.skippedOtp) {
+      res.cookie('refreshToken', result.refreshToken, REFRESH_COOKIE_OPTIONS);
+      const { refreshToken: _refreshToken, ...body } = result;
+      return body;
+    }
+    return { message: result.message };
   }
 
   @Post('refresh')
