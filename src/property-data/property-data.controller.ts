@@ -29,7 +29,7 @@ export class PropertyDataController {
   @Get('select')
   @ApiOperation({
     summary:
-      'Step 2 — user picked a suggestion: resolve it and pull ATTOM parcel data to prefill the create-listing form',
+      'Step 2 — user picked a suggestion: resolve it to prefill the create-listing address fields',
   })
   async select(@Query() query: PropertySelectQueryDto) {
     return this.propertyDataService.selectProperty(
@@ -40,7 +40,8 @@ export class PropertyDataController {
 
   @Get('lookup')
   @ApiOperation({
-    summary: 'Direct lookup by a known address (no search step) — ATTOM only',
+    summary:
+      'Direct lookup by a known address (no search step) — resolved through Google Places',
   })
   async lookup(@Query() query: PropertyLookupQueryDto) {
     return this.propertyDataService.lookupByAddress(

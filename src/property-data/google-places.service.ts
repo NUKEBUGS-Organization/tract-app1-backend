@@ -1,8 +1,7 @@
 import {
   BadGatewayException,
-  BadRequestException,
   Injectable,
-  InternalServerErrorException,
+  ServiceUnavailableException,
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -21,9 +20,13 @@ export interface AddressSuggestion {
 }
 
 export interface ResolvedAddress {
+  streetAddressComplete?: boolean;
   address1: string;
   address2: string;
   formatted_address: string;
+  city: string | null;
+  stateCode: string | null;
+  zipCode: string | null;
   latitude: number | null;
   longitude: number | null;
 }
@@ -35,24 +38,28 @@ export class GooglePlacesService {
   private readonly apiKeyConfigured: boolean;
 
   constructor(private readonly configService: ConfigService) {
-    const apiKey = this.configService.get<string>('GOOGLE_PLACES_API_KEY');
+    const apiKey = this.configService
+      .get<string>('GOOGLE_PLACES_API_KEY')
+      ?.trim();
     this.apiKeyConfigured = !!apiKey;
 
     this.client = axios.create({
       baseURL: 'https://maps.googleapis.com/maps/api/place',
+      timeout: 5000,
       params: { key: apiKey ?? '' },
     });
   }
 
   private assertConfigured() {
     if (!this.apiKeyConfigured) {
-      throw new InternalServerErrorException(
-        'Address search is not configured (missing GOOGLE_PLACES_API_KEY)',
-      );
+      throw new ServiceUnavailableException({
+        code: 'ADDRESS_SUGGESTIONS_UNAVAILABLE',
+        message:
+          'Address suggestions are unavailable. Enter the full address to look up property details or continue manually.',
+      });
     }
   }
 
-  // Step 1 — typeahead: partial text -> list of candidate addresses.
   async searchAddresses(
     query: string,
     sessionToken?: string,
@@ -75,9 +82,10 @@ export class GooglePlacesService {
       );
       data = response.data;
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       this.logger.error(
-        `Google Places autocomplete failed for "${query}": ${err.message}`,
-        err.stack,
+        `Google Places autocomplete failed for "${query}": ${message}`,
+        err instanceof Error ? err.stack : undefined,
       );
       throw new BadGatewayException('Address search failed');
     }
@@ -101,12 +109,32 @@ export class GooglePlacesService {
     }));
   }
 
-  // Step 2 — user picked a suggestion: place_id -> structured address,
-  // split the way ATTOM's property/address endpoint expects it
-  // (address1 = street, address2 = "city, state zip").
+  /**
+   * Resolve a full, user-typed address without a preceding typeahead step.
+   * Uses the top autocomplete prediction, then Place Details for components.
+   * Returns null when Places has no match for the text.
+   */
+  async findAddress(
+    fullAddress: string,
+    sessionToken?: string,
+  ): Promise<ResolvedAddress | null> {
+    const query = fullAddress.trim();
+    if (query.length < 3) return null;
+
+    const [best] = await this.searchAddresses(query, sessionToken);
+    if (!best) return null;
+
+    return this.resolveAddress(
+      best.place_id,
+      sessionToken,
+      best.main_text ?? undefined,
+    );
+  }
+
   async resolveAddress(
     placeId: string,
     sessionToken?: string,
+    selectedStreet?: string,
   ): Promise<ResolvedAddress> {
     this.assertConfigured();
 
@@ -125,9 +153,10 @@ export class GooglePlacesService {
       );
       data = response.data;
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       this.logger.error(
-        `Google Place Details failed for place_id "${placeId}": ${err.message}`,
-        err.stack,
+        `Google Place Details failed for place_id "${placeId}": ${message}`,
+        err instanceof Error ? err.stack : undefined,
       );
       throw new BadGatewayException('Address lookup failed');
     }
@@ -152,22 +181,37 @@ export class GooglePlacesService {
     const state = find('administrative_area_level_1')?.short_name;
     const postalCode = find('postal_code')?.long_name;
 
-    if (!streetNumber || !route) {
-      throw new BadRequestException(
-        'Please select a specific street address from the list',
-      );
-    }
-
-    const address1 = `${streetNumber} ${route}`;
+    // Google may resolve a numbered prediction to a route without street_number.
+    // Preserve its locality data; only reuse the prediction's number when its route matches.
+    const candidate = selectedStreet?.trim() ?? '';
+    const numbered = /^(\d+[A-Za-z]?(?:-\d+)?)[\s]+(.+)$/.exec(candidate);
+    const normalizeRoute = (value: string) =>
+      value.toLowerCase().replace(/[.,]/g, '').replace(/\s+/g, ' ').trim();
+    const matchingPrediction =
+      !!route &&
+      candidate.length <= 200 &&
+      !/[,\r\n]/.test(candidate) &&
+      !!numbered &&
+      normalizeRoute(numbered[2]) === normalizeRoute(route);
+    const address1 =
+      streetNumber && route
+        ? `${streetNumber} ${route}`
+        : matchingPrediction
+          ? candidate
+          : (route ?? '');
     const address2 = [locality, [state, postalCode].filter(Boolean).join(' ')]
       .filter(Boolean)
       .join(', ');
 
     return {
+      streetAddressComplete: !!(streetNumber && route) || matchingPrediction,
       address1,
       address2,
       formatted_address:
         data.result.formatted_address ?? `${address1}, ${address2}`,
+      city: locality ?? null,
+      stateCode: state ?? null,
+      zipCode: postalCode ?? null,
       latitude: data.result.geometry?.location?.lat ?? null,
       longitude: data.result.geometry?.location?.lng ?? null,
     };

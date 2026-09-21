@@ -4,7 +4,7 @@ import { IsNotEmpty, IsString } from 'class-validator';
 export class PropertyLookupQueryDto {
   @ApiProperty({
     example: '123 Main St',
-    description: 'Street address (ATTOM address1)',
+    description: 'Street address ',
   })
   @IsString()
   @IsNotEmpty()
@@ -12,7 +12,7 @@ export class PropertyLookupQueryDto {
 
   @ApiProperty({
     example: 'Newark, NJ 07101',
-    description: 'City, state, zip (ATTOM address2)',
+    description: 'City, state, zip ',
   })
   @IsString()
   @IsNotEmpty()
