@@ -82,8 +82,8 @@ export class ContractsService {
       throw new NotFoundException('Bid not found');
     }
 
-    // Buyer/partner must have an active SaaS subscription (seller is free).
-    await this.subscriptionsService.assertCanExecute(bid.bidder_id.toString());
+    // The seller is never gated here. The buyer/partner pays their own way at
+    // signing time, so creating the contract stays free and unblocked.
 
     if (bid.status !== BidStatus.SELECTED) {
       throw new BadRequestException('Only selected bid can create contract');
