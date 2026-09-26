@@ -233,6 +233,11 @@ export class SubscriptionsService {
       row = await this.subscriptions.findOne({ userId }).exec();
     }
     if (!row) {
+      row = await this.subscriptions
+        .findOne({ userId: new Types.ObjectId(userId) })
+        .exec();
+    }
+    if (!row) {
       throw new ServiceUnavailableException(
         'Could not start your subscription. Please retry.',
       );
