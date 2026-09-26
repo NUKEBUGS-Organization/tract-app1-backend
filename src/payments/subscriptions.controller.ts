@@ -15,6 +15,8 @@ import {
   BETA_TERMS_VERSION,
   SubscriptionsService,
 } from './subscriptions.service';
+import { CouponsService } from './coupons.service';
+import { CouponCodeDto } from './dto/coupon.dto';
 import { UsageLimitService } from './usage-limit.service';
 import type { UsageKind } from './schemas/usage-counter.schema';
 import type { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
@@ -38,6 +40,7 @@ export class SubscriptionsController {
   constructor(
     private readonly subscriptions: SubscriptionsService,
     private readonly usageLimits: UsageLimitService,
+    private readonly coupons: CouponsService,
   ) {}
 
   @Get('me')
@@ -91,6 +94,23 @@ export class SubscriptionsController {
   @Post('mock-checkout')
   mockCheckout(@Request() req: AuthenticatedRequest) {
     return this.subscriptions.mockCheckout(req.user._id.toString());
+  }
+
+  @Post('coupon/preview')
+  previewCoupon(
+    @Request() req: AuthenticatedRequest,
+    @Body() dto: CouponCodeDto,
+  ) {
+    return this.coupons.preview(req.user._id.toString(), dto.code);
+  }
+
+  @Post('coupon/redeem')
+  async redeemCoupon(
+    @Request() req: AuthenticatedRequest,
+    @Body() dto: CouponCodeDto,
+  ) {
+    await this.coupons.redeem(req.user._id.toString(), dto.code);
+    return this.subscriptions.getStatus(req.user._id.toString());
   }
 
   @Post('cancel')

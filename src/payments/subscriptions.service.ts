@@ -22,6 +22,7 @@ import {
 } from './subscription-policy';
 
 export const BETA_TERMS_VERSION = '2026-09-07';
+const COUPON_STATUS = 'COUPON';
 
 @Injectable()
 export class SubscriptionsService {
@@ -46,23 +47,37 @@ export class SubscriptionsService {
     return this.config.get<string>('SUBSCRIPTION_MODE') ?? 'mock';
   }
 
+  private couponActive(row: SubscriptionDocument | null): boolean {
+    return Boolean(
+      row?.couponCode &&
+        row.couponFreeUntil &&
+        row.couponFreeUntil.getTime() > Date.now(),
+    );
+  }
+
   private isPaid(row: SubscriptionDocument | null, amount: number | null) {
+    const coupon = this.couponActive(row);
     return (
       amount === null ||
+      coupon ||
       Boolean(
         row &&
           row.amount === amount &&
           row.paidUntil &&
           row.paidUntil.getTime() > Date.now() &&
-          ['ACTIVE', 'CANCELLED', 'EXPIRED', 'PAID_TEST'].includes(row.status),
+          ['ACTIVE', 'CANCELLED', 'EXPIRED', 'PAID_TEST', COUPON_STATUS].includes(
+            row.status,
+          ),
       )
     );
   }
 
   private result(row: SubscriptionDocument | null, amount: number | null) {
+    const coupon = this.couponActive(row);
     return {
       required: amount !== null,
       amount,
+      amountDue: amount === null ? null : coupon ? 0 : amount,
       currency: 'USD',
       interval: 'month',
       active: this.isPaid(row, amount),
@@ -76,6 +91,13 @@ export class SubscriptionsService {
       ),
       termsVersion: BETA_TERMS_VERSION,
       mock: row?.status === 'PAID_TEST',
+      coupon: coupon
+        ? {
+            code: row!.couponCode!,
+            amountWaived: row!.couponAmountWaived ?? amount,
+            freeUntil: row!.couponFreeUntil!,
+          }
+        : null,
     };
   }
 
@@ -117,6 +139,8 @@ export class SubscriptionsService {
     if (amount === null) {
       throw new BadRequestException('Your role does not require a subscription.');
     }
+    const existing = await this.subscriptions.findOne({ userId }).exec();
+    if (this.couponActive(existing)) return this.result(existing, amount);
     const now = new Date();
     const paidUntil = new Date(now);
     paidUntil.setMonth(paidUntil.getMonth() + 1);
@@ -192,6 +216,8 @@ export class SubscriptionsService {
     if (amount === null) {
       throw new BadRequestException('Your role does not require a subscription.');
     }
+    const existing = await this.subscriptions.findOne({ userId }).exec();
+    if (this.couponActive(existing)) return { ...this.result(existing, amount), approvalUrl: null };
     const expectedPlanId = this.config.get<string>(
       amount === 50 ? 'paypal.wholesalerPlanId' : 'paypal.buyerPlanId',
     );
@@ -259,6 +285,8 @@ export class SubscriptionsService {
     if (amount === null) {
       throw new BadRequestException('Your role does not require a subscription.');
     }
+    const existing = await this.subscriptions.findOne({ userId }).exec();
+    if (this.couponActive(existing)) return { ...this.result(existing, amount), approvalUrl: null };
     const planId = this.config.get<string>(
       amount === 50 ? 'paypal.wholesalerPlanId' : 'paypal.buyerPlanId',
     );

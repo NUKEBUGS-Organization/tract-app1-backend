@@ -44,6 +44,18 @@ export class Subscription {
 
   @Prop({ required: true })
   termsVersion: string;
+
+  @Prop({ type: String, default: null })
+  couponCode: string | null;
+
+  @Prop({ type: Number, default: null })
+  couponAmountWaived: number | null;
+
+  @Prop({ type: Date, default: null })
+  couponFreeUntil: Date | null;
+
+  @Prop({ type: Date, default: null })
+  couponRedeemedAt: Date | null;
 }
 
 export const SubscriptionSchema = SchemaFactory.createForClass(Subscription);

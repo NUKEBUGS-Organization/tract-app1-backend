@@ -12,6 +12,12 @@ import {
   UsageCounter,
   UsageCounterSchema,
 } from './schemas/usage-counter.schema';
+import { Coupon, CouponSchema } from './schemas/coupon.schema';
+import {
+  CouponRedemption,
+  CouponRedemptionSchema,
+} from './schemas/coupon-redemption.schema';
+import { CouponsService } from './coupons.service';
 import { SubscriptionsController } from './subscriptions.controller';
 import { SubscriptionsService } from './subscriptions.service';
 import { UsageLimitService } from './usage-limit.service';
@@ -22,11 +28,13 @@ import { UsageLimitService } from './usage-limit.service';
     MongooseModule.forFeature([
       { name: Subscription.name, schema: SubscriptionSchema },
       { name: UsageCounter.name, schema: UsageCounterSchema },
+      { name: Coupon.name, schema: CouponSchema },
+      { name: CouponRedemption.name, schema: CouponRedemptionSchema },
       { name: User.name, schema: UserSchema },
     ]),
   ],
   controllers: [SubscriptionsController],
-  providers: [PaypalService, SubscriptionsService, UsageLimitService],
-  exports: [SubscriptionsService, UsageLimitService],
+  providers: [PaypalService, SubscriptionsService, UsageLimitService, CouponsService],
+  exports: [SubscriptionsService, UsageLimitService, CouponsService],
 })
 export class PaymentsModule {}

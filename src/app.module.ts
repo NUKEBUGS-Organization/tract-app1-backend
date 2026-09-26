@@ -12,6 +12,7 @@ import jwtConfig from './config/jwt.config';
 import mailConfig from './config/mail.config';
 import smsConfig from './config/sms.config';
 import paypalConfig from './config/paypal.config';
+import betaCouponConfig from './config/beta-coupon.config';
 
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './auth/auth.module';
@@ -44,6 +45,7 @@ import { AppThrottlerGuard } from './common/guards/app-throttler.guard';
         mailConfig,
         smsConfig,
         paypalConfig,
+        betaCouponConfig,
       ],
       envFilePath: '.env',
       cache: true
