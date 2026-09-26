@@ -25,6 +25,11 @@ class SubscribeDto {
   termsVersion: string;
 }
 
+class ConfirmSubscriptionDto extends SubscribeDto {
+  @IsString()
+  subscriptionId: string;
+}
+
 @ApiTags('Subscriptions')
 @ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard)
@@ -64,6 +69,23 @@ export class SubscriptionsController {
     @Body() dto: SubscribeDto,
   ) {
     return this.subscriptions.create(req.user._id.toString(), dto.termsVersion);
+  }
+
+  @Get('paypal/card-config')
+  cardConfig(@Request() req: AuthenticatedRequest) {
+    return this.subscriptions.cardCheckoutConfig(req.user._id.toString());
+  }
+
+  @Post('paypal/confirm')
+  confirm(
+    @Request() req: AuthenticatedRequest,
+    @Body() dto: ConfirmSubscriptionDto,
+  ) {
+    return this.subscriptions.confirmClientSubscription(
+      req.user._id.toString(),
+      dto.subscriptionId,
+      dto.termsVersion,
+    );
   }
 
   @Post('mock-checkout')
