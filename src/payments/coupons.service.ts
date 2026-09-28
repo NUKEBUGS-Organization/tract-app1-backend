@@ -110,6 +110,12 @@ export class CouponsService implements OnModuleInit {
     return Math.max(0, Math.round((amount * (100 - percentOff)) / 100));
   }
 
+  private couponPaidUntil(now: Date, freeUntil: Date): Date {
+    const paidUntil = new Date(now);
+    paidUntil.setMonth(paidUntil.getMonth() + 1);
+    return paidUntil < freeUntil ? paidUntil : freeUntil;
+  }
+
   private async assertValidCoupon(
     code: string,
     role: string,
@@ -135,6 +141,7 @@ export class CouponsService implements OnModuleInit {
     amount: number,
   ) {
     const now = new Date();
+    const paidUntil = this.couponPaidUntil(now, coupon.freeUntil);
     await this.subscriptions
       .findOneAndUpdate(
         { userId: new Types.ObjectId(userId) },
@@ -146,7 +153,7 @@ export class CouponsService implements OnModuleInit {
             paypalSubscriptionId: null,
             approvalUrl: null,
             status: COUPON_STATUS,
-            paidUntil: coupon.freeUntil,
+            paidUntil,
             lastPaymentAt: null,
             revokedPaymentAt: null,
             syncedAt: now,

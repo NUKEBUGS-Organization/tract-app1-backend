@@ -59,7 +59,9 @@ export class SubscriptionsService {
     return Boolean(
       row?.couponCode &&
         row.couponFreeUntil &&
-        row.couponFreeUntil.getTime() > Date.now(),
+        row.couponFreeUntil.getTime() > Date.now() &&
+        row.paidUntil &&
+        row.paidUntil.getTime() > Date.now(),
     );
   }
 
@@ -109,6 +111,12 @@ export class SubscriptionsService {
     };
   }
 
+  private couponPaidUntil(now: Date, freeUntil: Date): Date {
+    const paidUntil = new Date(now);
+    paidUntil.setMonth(paidUntil.getMonth() + 1);
+    return paidUntil < freeUntil ? paidUntil : freeUntil;
+  }
+
   private async repairCouponStatus(userId: string, amount: number | null) {
     if (amount === null || !this.redemptions) return null;
     const redemption = await this.redemptions
@@ -117,6 +125,7 @@ export class SubscriptionsService {
       .exec();
     if (!redemption) return null;
     const now = new Date();
+    const paidUntil = this.couponPaidUntil(now, redemption.freeUntil);
     return this.subscriptions
       .findOneAndUpdate(
         { userId: new Types.ObjectId(userId) },
@@ -128,7 +137,7 @@ export class SubscriptionsService {
             paypalSubscriptionId: null,
             approvalUrl: null,
             status: COUPON_STATUS,
-            paidUntil: redemption.freeUntil,
+            paidUntil,
             lastPaymentAt: null,
             revokedPaymentAt: null,
             syncedAt: now,

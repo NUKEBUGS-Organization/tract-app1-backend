@@ -134,27 +134,8 @@ export class ScoreService implements OnModuleInit {
       throw new ForbiddenException('Account is banned');
     }
 
-    if (user.role !== Role.WHOLESALER && user.role !== Role.REALTOR) {
-      return;
-    }
-
-    const score = user[this.scoreFieldFor(user.role)];
-
-    if (score < REINSTATEMENT_THRESHOLD) {
-      throw new ForbiddenException(
-        `Your ${user.role === Role.WHOLESALER ? 'reliability' : 'professional'} score (${score}) has dropped below ${REINSTATEMENT_THRESHOLD}. Contact support for reinstatement before bidding again.`,
-      );
-    }
-
-    if (
-      score < DELAYED_ACCESS_THRESHOLD &&
-      user.scoreRestrictedUntil &&
-      user.scoreRestrictedUntil > new Date()
-    ) {
-      throw new ForbiddenException(
-        `Your account has delayed access due to a low score. You can bid again after ${user.scoreRestrictedUntil.toISOString()}.`,
-      );
-    }
+    // Score restrictions are informational only for now. Keep computing and showing
+    // status, but do not block wholesalers/realtors from bidding or transacting.
   }
 
   // ─── Core operations ────────────────────────────────────────────────────────
