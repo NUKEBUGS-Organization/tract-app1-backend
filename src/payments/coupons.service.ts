@@ -111,6 +111,59 @@ export class CouponsService implements OnModuleInit {
     return Math.max(0, Math.round((amount * (100 - percentOff)) / 100));
   }
 
+  private async assertValidCoupon(
+    code: string,
+    role: string,
+  ): Promise<CouponDocument> {
+    const coupon = await this.coupons.findOne({ code }).exec();
+    if (!coupon || !coupon.active) {
+      throw new NotFoundException('That coupon code is not valid.');
+    }
+    if (coupon.freeUntil.getTime() <= Date.now()) {
+      throw new BadRequestException('That coupon has expired.');
+    }
+    if (coupon.allowedRoles.length > 0 && !coupon.allowedRoles.includes(role)) {
+      throw new BadRequestException(
+        'That coupon is not available for your account type.',
+      );
+    }
+    return coupon;
+  }
+
+  private async grantCouponAccess(
+    userId: string,
+    coupon: CouponDocument,
+    amount: number,
+  ) {
+    const now = new Date();
+    await this.subscriptions
+      .findOneAndUpdate(
+        { userId: new Types.ObjectId(userId) },
+        {
+          $set: {
+            amount,
+            planId: COUPON_STATUS,
+            requestId: `coupon:${coupon.code}:${userId}`,
+            paypalSubscriptionId: null,
+            approvalUrl: null,
+            status: COUPON_STATUS,
+            paidUntil: coupon.freeUntil,
+            lastPaymentAt: null,
+            revokedPaymentAt: null,
+            syncedAt: now,
+            termsAcceptedAt: now,
+            termsVersion: BETA_TERMS_VERSION,
+            couponCode: coupon.code,
+            couponAmountWaived: amount,
+            couponFreeUntil: coupon.freeUntil,
+            couponRedeemedAt: now,
+          },
+        },
+        { upsert: true, new: true },
+      )
+      .exec();
+  }
+
   async preview(userId: string, rawCode: string): Promise<CouponPreview> {
     const code = this.normalize(rawCode);
     const { role, amount } = await this.userTier(userId);
@@ -130,18 +183,7 @@ export class CouponsService implements OnModuleInit {
     role: string,
     userId: string,
   ): Promise<CouponDocument> {
-    const coupon = await this.coupons.findOne({ code }).exec();
-    if (!coupon || !coupon.active) {
-      throw new NotFoundException('That coupon code is not valid.');
-    }
-    if (coupon.freeUntil.getTime() <= Date.now()) {
-      throw new BadRequestException('That coupon has expired.');
-    }
-    if (coupon.allowedRoles.length > 0 && !coupon.allowedRoles.includes(role)) {
-      throw new BadRequestException(
-        'That coupon is not available for your account type.',
-      );
-    }
+    const coupon = await this.assertValidCoupon(code, role);
     if (
       coupon.maxRedemptions !== null &&
       coupon.redemptionCount >= coupon.maxRedemptions
@@ -159,12 +201,32 @@ export class CouponsService implements OnModuleInit {
   async redeem(userId: string, rawCode: string) {
     const code = this.normalize(rawCode);
     const { role, amount } = await this.userTier(userId);
-    const coupon = await this.assertRedeemable(code, role, userId);
+    const coupon = await this.assertValidCoupon(code, role);
     const amountDue = this.amountDue(amount, coupon.percentOff);
     if (amountDue > 0) {
       throw new BadRequestException(
         'Partial-discount coupons are not supported yet.',
       );
+    }
+    const existing = await this.redemptions
+      .findOne({ couponId: coupon._id, userId: new Types.ObjectId(userId) })
+      .lean()
+      .exec();
+    if (existing) {
+      await this.grantCouponAccess(userId, coupon, amount);
+      return {
+        code: coupon.code,
+        amountBefore: amount,
+        amountDue: 0,
+        percentOff: coupon.percentOff,
+        freeUntil: coupon.freeUntil,
+      };
+    }
+    if (
+      coupon.maxRedemptions !== null &&
+      coupon.redemptionCount >= coupon.maxRedemptions
+    ) {
+      throw new BadRequestException('That coupon has reached its redemption limit.');
     }
 
     const claimed = await this.coupons
@@ -205,33 +267,7 @@ export class CouponsService implements OnModuleInit {
       throw err;
     }
 
-    const now = new Date();
-    await this.subscriptions
-      .findOneAndUpdate(
-        { userId: new Types.ObjectId(userId) },
-        {
-          $set: {
-            amount,
-            planId: COUPON_STATUS,
-            requestId: `coupon:${coupon.code}:${userId}`,
-            paypalSubscriptionId: null,
-            approvalUrl: null,
-            status: COUPON_STATUS,
-            paidUntil: coupon.freeUntil,
-            lastPaymentAt: null,
-            revokedPaymentAt: null,
-            syncedAt: now,
-            termsAcceptedAt: now,
-            termsVersion: BETA_TERMS_VERSION,
-            couponCode: coupon.code,
-            couponAmountWaived: amount,
-            couponFreeUntil: coupon.freeUntil,
-            couponRedeemedAt: now,
-          },
-        },
-        { upsert: true, new: true },
-      )
-      .exec();
+    await this.grantCouponAccess(userId, coupon, amount);
 
     this.logger.log(
       `Coupon ${coupon.code} redeemed by ${userId} (${role}); $${amount}/mo waived through ${coupon.freeUntil.toISOString()}.`,
