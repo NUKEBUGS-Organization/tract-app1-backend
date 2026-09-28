@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -167,7 +166,18 @@ export class CouponsService implements OnModuleInit {
   async preview(userId: string, rawCode: string): Promise<CouponPreview> {
     const code = this.normalize(rawCode);
     const { role, amount } = await this.userTier(userId);
-    const coupon = await this.assertRedeemable(code, role, userId);
+    const coupon = await this.assertValidCoupon(code, role);
+    const already = await this.redemptions
+      .findOne({ couponId: coupon._id, userId: new Types.ObjectId(userId) })
+      .lean()
+      .exec();
+    if (
+      !already &&
+      coupon.maxRedemptions !== null &&
+      coupon.redemptionCount >= coupon.maxRedemptions
+    ) {
+      throw new BadRequestException('That coupon has reached its redemption limit.');
+    }
     return {
       code: coupon.code,
       description: coupon.description,
@@ -176,26 +186,6 @@ export class CouponsService implements OnModuleInit {
       percentOff: coupon.percentOff,
       freeUntil: coupon.freeUntil,
     };
-  }
-
-  private async assertRedeemable(
-    code: string,
-    role: string,
-    userId: string,
-  ): Promise<CouponDocument> {
-    const coupon = await this.assertValidCoupon(code, role);
-    if (
-      coupon.maxRedemptions !== null &&
-      coupon.redemptionCount >= coupon.maxRedemptions
-    ) {
-      throw new BadRequestException('That coupon has reached its redemption limit.');
-    }
-    const already = await this.redemptions
-      .findOne({ couponId: coupon._id, userId: new Types.ObjectId(userId) })
-      .lean()
-      .exec();
-    if (already) throw new ConflictException('You have already redeemed this coupon.');
-    return coupon;
   }
 
   async redeem(userId: string, rawCode: string) {
@@ -262,7 +252,14 @@ export class CouponsService implements OnModuleInit {
         .updateOne({ _id: coupon._id }, { $inc: { redemptionCount: -1 } })
         .exec();
       if ((err as { code?: number }).code === 11000) {
-        throw new ConflictException('You have already redeemed this coupon.');
+        await this.grantCouponAccess(userId, coupon, amount);
+        return {
+          code: coupon.code,
+          amountBefore: amount,
+          amountDue: 0,
+          percentOff: coupon.percentOff,
+          freeUntil: coupon.freeUntil,
+        };
       }
       throw err;
     }
