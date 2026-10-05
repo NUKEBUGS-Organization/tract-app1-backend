@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { MulterModule } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { ListingsController } from './listings.controller';
+import { PublicListingsController } from './public-listings.controller';
 import { ListingsService } from './listings.service';
 import { Listing, ListingSchema } from './schemas/listing.schema';
 import { Bid, BidSchema } from '../bids/schemas/bid.schema';
@@ -21,7 +22,7 @@ import { CloudinaryService } from '../common/services/cloudinary.service';
     ]),
     MulterModule.register({ storage: memoryStorage() }), // store in memory, upload to Cloudinary
   ],
-  controllers: [ListingsController],
+  controllers: [ListingsController, PublicListingsController],
   providers: [ListingsService, CloudinaryService],
   exports: [ListingsService, MongooseModule],
 })
