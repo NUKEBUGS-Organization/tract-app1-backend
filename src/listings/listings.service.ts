@@ -27,6 +27,20 @@ import { CloudinaryService } from '../common/services/cloudinary.service';
 
 const MAX_BIDS = 10;
 
+const PUBLIC_LISTING_FIELDS = [
+  'property_type',
+  'state_code',
+  'year_built',
+  'market_price',
+  'unit_count',
+  'is_vacant',
+  'condition_report.overall',
+  'picture_urls',
+  'bid_count',
+  'live_at',
+  'status',
+].join(' ');
+
 @Injectable()
 export class ListingsService {
   private readonly logger = new Logger(ListingsService.name);
@@ -72,6 +86,38 @@ export class ListingsService {
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
       this.logger.error(`getListingById failed: ${error.message}`, error.stack);
+      throw new InternalServerErrorException('Failed to fetch listing.');
+    }
+  }
+
+  // ─── GET /public/listings/:id ──────────────────────────────────────────────
+  // Unauthenticated share view. Only live listings, and only fields partners
+  // can already see before winning — never address, seller, reserve or liens.
+  async getPublicListing(listingId: string) {
+    if (!Types.ObjectId.isValid(listingId)) {
+      throw new NotFoundException('Listing not found');
+    }
+
+    try {
+      const listing = await this.listingModel
+        .findOne({
+          _id: new Types.ObjectId(listingId),
+          status: ListingStatus.LIVE,
+          deleted_at: null,
+        })
+        .select(PUBLIC_LISTING_FIELDS)
+        .lean();
+
+      if (!listing) throw new NotFoundException('Listing not found');
+
+      const { condition_report, ...rest } = listing as any;
+      return {
+        ...rest,
+        condition_overall: condition_report?.overall ?? null,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      this.logger.error(`getPublicListing failed: ${error.message}`, error.stack);
       throw new InternalServerErrorException('Failed to fetch listing.');
     }
   }
